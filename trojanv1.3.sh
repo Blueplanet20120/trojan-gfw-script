@@ -124,11 +124,11 @@ openfirewall(){
 installrely(){
 	echo installing trojan-gfw nginx and acme
 	if [[ $dist = centos ]]; then
-    yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils -y
+    yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
  elif [[ $dist = ubuntu ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
  elif [[ $dist = debian ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
  else
   clear
     echo "error can't update system"
@@ -148,8 +148,10 @@ nginxapt(){
 	wget https://nginx.org/keys/nginx_signing.key
 	apt-key add nginx_signing.key
   touch /etc/apt/sources.list.d/nginx.list
-	echo "deb https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list
-	echo "deb-src https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list
+  cat > '/etc/apt/sources.list.d/nginx.list' << EOF
+deb https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx
+deb-src https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx
+EOF
 	apt-get update
 	apt-get install nginx -y
 }
@@ -158,8 +160,10 @@ nginxubuntu(){
 	wget https://nginx.org/keys/nginx_signing.key
 	apt-key add nginx_signing.key
   touch /etc/apt/sources.list.d/nginx.list
-	echo "deb https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list
-	echo "deb-src https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx" >> /etc/apt/sources.list.d/nginx.list
+  cat > '/etc/apt/sources.list.d/nginx.list' << EOF
+deb https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx
+deb-src https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx
+EOF
 	apt-get update
 	apt-get install nginx -y
 }
@@ -181,17 +185,19 @@ installnginx(){
 installacme(){
 	curl https://get.acme.sh | sh
   sudo ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+  rm -rf /etc/trojan/
 	mkdir /etc/trojan/
 }
 
 issuecert(){
   systemctl start nginx
-	sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256
-  systemctl stop nginx
+	sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256 --log
+#sudo ~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --log
 }
 
 renewcert(){
-  sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256
+  sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256 --force --log
+  #sudo ~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --force --log
 }
 
 installcert(){
@@ -218,7 +224,7 @@ rm -rf /etc/nginx/conf.d/default.conf
 touch /etc/nginx/conf.d/trojan.conf
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
-  listen 127.0.0.1:80; #放在Trojan后面即可做伪装也可以是真正的网站
+  listen 127.0.0.1:80;
     server_name $domain;
     location / {
       root /usr/share/nginx/html/;
@@ -231,7 +237,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name $domain;
-    root /usr/share/nginx/html/; #用于自动更新证书
+    root /usr/share/nginx/html/; #needed for certificate auto renew
 }
 
 server {
@@ -246,7 +252,6 @@ EOF
 #echo "trojan-gfw config complete!"
 autostart(){
 	systemctl start trojan
-	systemctl start nginx
 	systemctl enable nginx
 	systemctl enable trojan
 }
@@ -391,7 +396,7 @@ rm -rf /etc/nginx/conf.d/default.conf
 touch /etc/nginx/conf.d/trojan.conf
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
-  listen 127.0.0.1:80; #放在Trojan后面即可做伪装也可以是真正的网站
+  listen 127.0.0.1:80;
     server_name $domain;
     location / {
       root /usr/share/nginx/html/;
@@ -417,7 +422,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name $domain;
-    root /usr/share/nginx/html/; #用于自动更新证书
+    root /usr/share/nginx/html/; #needed for certificate auto renew
 }
 
 server {
@@ -672,6 +677,9 @@ _EOF_
         echo "installing acme"
         installacme
         clear
+        echo "autoconfiging nginx"
+        nginxtrojan
+        clear
         echo "issueing let\'s encrypt certificate"
         issuecert
         clear
@@ -684,9 +692,6 @@ _EOF_
         clear
         echo "autoconfiging trojan-gfw"
         changepasswd
-        clear
-        echo "autoconfiging nginx"
-        nginxtrojan
         clear
         echo "starting trojan-gfw and nginx | setting up boot autostart"
         autostart
@@ -732,6 +737,9 @@ _EOF_
         echo "installing acme"
         installacme
         clear
+        echo "configing v2ray vmess+tls+Websocket"
+        nginxv2ray
+        clear
         echo "issueing let\'s encrypt certificate"
         issuecert
         echo "issueing let\'s encrypt certificate"
@@ -742,8 +750,6 @@ _EOF_
         changepasswd
         echo "installing V2ray"
         installv2ray
-        echo "configing v2ray vmess+tls+Websocket"
-        nginxv2ray
         echo "starting trojan-gfw v2ray and nginx | setting up boot autostart"
         autostart
         echo "Setting up tcp-bbr boost technology"
@@ -796,6 +802,7 @@ _EOF_
         ;;
       5)
         userinput
+        osdist
         installrely
         if isresolved $domain
         then
