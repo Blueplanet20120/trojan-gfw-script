@@ -3,6 +3,31 @@ if [[ $(id -u) != 0 ]]; then
     echo Please run this script as root.
     exit 1
 fi
+
+#######color code############
+ERROR="31m"      # Error message
+SUCCESS="32m"    # Success message
+WARNING="33m"   # Warning message
+INFO="93m"     # Info message
+
+#############################
+
+function prompt() {
+    while true; do
+        read -p "$1 [y/N] " yn
+        case $yn in
+            [Yy] ) return 0;;
+            [Nn]|"" ) return 1;;
+        esac
+    done
+}
+
+
+colorEcho(){
+    COLOR=$1
+    echo -e "\033[${COLOR}${@:2}\033[0m"
+}
+
 isresolved(){
     if [ $# = 2 ]
     then
@@ -25,32 +50,27 @@ isresolved(){
 
 userinput(){
 echo "Hello, "$USER".  This script will help you set up a trojan-gfw server."
-echo -n "Please Enter your domain and press [ENTER]: "
+colorEcho ${WARNING} "Please Enter your domain and press [ENTER]: "
 read domain
   if [[ -z "$domain" ]]; then
-    echo
-    echo -n "INPUT ERROR! Please Enter your domain again and press [ENTER]: "
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your domain again and press [ENTER]: "
     read domain
   fi
-echo -n "It\'s nice to meet you $domain"
-echo
-echo -n "Please Enter your desired password1 and press [ENTER]: "
+colorEcho ${INFO} "It\'s nice to meet you $domain"
+colorEcho ${WARNING} "Please Enter your desired password1 and press [ENTER]: "
 read password1
   if [[ -z "$password1" ]]; then
-    echo
-    echo -n "INPUT ERROR! Please Enter your os password1 again and press [ENTER]: "
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your os password1 again and press [ENTER]: "
     read password1
   fi
-echo -n "Your password1 is $password1"
-echo
-echo -n "Please Enter your desired password2 and press [ENTER]: "
+colorEcho ${INFO} "Your password1 is $password1"
+colorEcho ${WARNING} "Please Enter your desired password2 and press [ENTER]: "
 read password2
   if [[ -z "$password2" ]]; then
-    echo
-    echo -n "INPUT ERROR! Please Enter your password2 again and press [ENTER]: "
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password2 again and press [ENTER]: "
     read password2
   fi
-echo -n "Your password2 is $password2"
+colorEcho ${INFO} "Your password2 is $password2"
 }
 
 osdist(){
@@ -89,28 +109,30 @@ set -e
 
 updatesystem(){
 	if [[ $dist = centos ]]; then
-    yum update
+    yum update -q
  elif [[ $dist = ubuntu ]]; then
-    apt-get update
+    apt-get update -q
  elif [[ $dist = debian ]]; then
-    apt-get update
+    apt-get update -q
  else
   clear
-    echo "error can't update system"
+    colorEcho ${ERROR} "error can't update system"
     exit 1;
  fi
 }
 
 upgradesystem(){
 	if [[ $dist = centos ]]; then
-    yum upgrade -y
+    yum upgrade -q -y
  elif [[ $dist = ubuntu ]]; then
-    apt-get upgrade -y
+     export DEBIAN_FRONTEND=noninteractive 
+    apt-get upgrade -q -y
  elif [[ $dist = debian ]]; then
-    apt-get upgrade -y
+     export DEBIAN_FRONTEND=noninteractive 
+    apt-get upgrade -q -y
  else
   clear
-    echo "error can't upgrade system"
+    colorEcho ${ERROR} "error can't upgrade system"
     exit 1;
  fi
 }
@@ -122,16 +144,16 @@ openfirewall(){
 }
 
 installdependency(){
-	echo installing trojan-gfw nginx and acme
+	echo "installing trojan-gfw nginx and acme"
 	if [[ $dist = centos ]]; then
-    yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
+    yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release python3-qrcode python-pil unzip -q -y
  elif [[ $dist = ubuntu ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release python3-qrcode python-pil unzip -q -y
  elif [[ $dist = debian ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 gnupg1 dnsutils lsb-release python3-qrcode python-pil unzip -q -y
  else
   clear
-    echo "error can't update system"
+    colorEcho ${ERROR} "error can't install dependency"
     exit 1;
  fi
 }
@@ -141,7 +163,7 @@ installtrojan-gfw(){
 }
 
 nginxyum(){
-	yum install nginx -y
+	yum install nginx -q -y
 }
 
 nginxapt(){
@@ -152,8 +174,8 @@ nginxapt(){
 deb https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx
 deb-src https://nginx.org/packages/mainline/debian/ $(lsb_release -cs) nginx
 EOF
-	apt-get update
-	apt-get install nginx -y
+	apt-get update -q
+	apt-get install nginx -q -y
 }
 
 nginxubuntu(){
@@ -164,8 +186,8 @@ nginxubuntu(){
 deb https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx
 deb-src https://nginx.org/packages/mainline/ubuntu/ $(lsb_release -cs) nginx
 EOF
-	apt-get update
-	apt-get install nginx -y
+	apt-get update -q
+	apt-get install nginx -q -y
 }
 
 installnginx(){
@@ -177,7 +199,7 @@ installnginx(){
     nginxapt
  else
   clear
-    echo "error can't install nginx"
+    colorEcho ${ERROR} "error can't install nginx"
     exit 1;
  fi
 }
@@ -192,12 +214,12 @@ installacme(){
 issuecert(){
   systemctl start nginx
 	sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256 --log
-#sudo ~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --log
+  #sudo ~/.acme.sh/acme.sh --issue --nginx /etc/nginx/conf.d/trojan.conf -d $domain -k ec-256 --log
 }
 
 renewcert(){
   sudo ~/.acme.sh/acme.sh --issue -d $domain --webroot /usr/share/nginx/html/ -k ec-256 --force --log
-  #sudo ~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --force --log
+  #sudo ~/.acme.sh/acme.sh --issue --nginx /etc/nginx/conf.d/trojan.conf -d $domain -k ec-256 --log
 }
 
 installcert(){
@@ -218,9 +240,9 @@ changepasswd(){
 }
 
 nginxtrojan(){
-rm -rf /etc/nginx/sites-available/
-rm -rf /etc/nginx/sites-enabled/
-rm -rf /etc/nginx/conf.d/default.conf
+rm -rf /etc/nginx/sites-available/*
+rm -rf /etc/nginx/sites-enabled/*
+rm -rf /etc/nginx/conf.d/*
 touch /etc/nginx/conf.d/trojan.conf
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
@@ -237,7 +259,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name $domain;
-    root /usr/share/nginx/html/; #needed for certificate auto renew
+    root /usr/share/nginx/html/; #needed for auto certificate renew
 }
 
 server {
@@ -265,19 +287,24 @@ tcp-bbr(){
 
 iptables-persistent(){
   if [[ $dist = centos ]]; then
-    yum install iptables-persistent -y
+    yum install iptables-persistent -q -y
  elif [[ $dist = ubuntu ]]; then
-    apt-get install iptables-persistent -y
+     export DEBIAN_FRONTEND=noninteractive 
+    apt-get install iptables-persistent -q -y
  elif [[ $dist = debian ]]; then
-    apt-get install iptables-persistent -y
+     export DEBIAN_FRONTEND=noninteractive 
+    apt-get install iptables-persistent -q -y
  else
   clear
-    echo "error can't install iptables-persistent"
+    colorEcho ${ERROR} "error can't install iptables-persistent"
     exit 1;
  fi
 }
-
+###########Trojan share link########
 sharelink(){
+  cd
+  wget https://github.com/trojan-gfw/trojan-url/raw/master/trojan-url.py
+  ./trojan-url.py -i /etc/trojan/client.json
   echo "Your Trojan-Gfw Share link1 is: trojan://$password1@$domain:443"
   echo "Your Trojan-Gfw Share link1 is: trojan://$password2@$domain:443"
   echo ""
@@ -286,25 +313,35 @@ sharelink(){
 ############Set UP V2ray############
 v2input(){
 echo "Hello, "$USER".  This script will help you set up a trojan-gfw server."
-echo -n "Please Enter your domain and press [ENTER]: "
+colorEcho ${WARNING} "Please Enter your domain and press [ENTER]: "
 read domain
-echo -n "It\'s nice to meet you $domain"
-echo
-echo -n "Please Enter your desired password1 and press [ENTER]: "
+  if [[ -z "$domain" ]]; then
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your domain again and press [ENTER]: "
+    read domain
+  fi
+colorEcho ${INFO} "It\'s nice to meet you $domain"
+colorEcho ${WARNING} "Please Enter your desired password1 and press [ENTER]: "
 read password1
-echo -n "Your password1 is $password1"
-echo
-echo -n "Please Enter your desired password2 and press [ENTER]: "
+  if [[ -z "$password1" ]]; then
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your os password1 again and press [ENTER]: "
+    read password1
+  fi
+colorEcho ${INFO} "Your password1 is $password1"
+colorEcho ${WARNING} "Please Enter your desired password2 and press [ENTER]: "
 read password2
-echo -n "Your password2 is $password2"
-echo -n "Please Enter your desired Websocket path and press [ENTER]: "
+  if [[ -z "$password2" ]]; then
+    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password2 again and press [ENTER]: "
+    read password2
+  fi
+colorEcho ${INFO} "Your password2 is $password2"
+colorEcho ${WARNING} "Please Enter your desired Websocket path and press [ENTER]: "
 read path
-echo -n "Your path is $path"
+colorEcho ${INFO} "Your path is $path"
 }
 installv2ray(){
   bash <(curl -L -s https://install.direct/go.sh)
   rm -rf /etc/v2ray/config.json
-  echo "generating random uuid"
+  colorEcho ${INFO} "generating random uuid"
   uuid=$(/usr/bin/v2ray/v2ctl uuid)
   cat > "/etc/v2ray/config.json" << EOF
 {
@@ -373,13 +410,6 @@ installv2ray(){
         "type" :"field",
         "outboundTag": "blocked",
         "domain": ["geosite:category-ads"]
-      },
-      {
-        "type": "field",
-        "outboundTag": "blocked",
-        "protocol": [
-          "bittorrent"
-        ]
       }
     ]
   }
@@ -396,7 +426,7 @@ rm -rf /etc/nginx/conf.d/default.conf
 touch /etc/nginx/conf.d/trojan.conf
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
-  listen 127.0.0.1:80;
+  listen 127.0.0.1:80; #放在Trojan后面即可做伪装也可以是真正的网站
     server_name $domain;
     location / {
       root /usr/share/nginx/html/;
@@ -422,7 +452,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name $domain;
-    root /usr/share/nginx/html/; #needed for certificate auto renew
+    root /usr/share/nginx/html/; #用于自动更新证书
 }
 
 server {
@@ -620,8 +650,24 @@ removev2ray(){
   cd
   wget https://install.direct/go.sh
   sudo bash go.sh --remove
+  rm go.sh
 }
-####################################
+###########Remove Nginx and acme###############
+removenginx(){
+  systemctl stop nginx
+  systemctl disable nginx
+  apt purge nginx -p -y
+  sudo ~/.acme.sh/acme.sh --uninstall
+}
+##########Check for update############
+checkupdate(){
+  cd
+  wget https://install.direct/go.sh
+  sudo bash go.sh --check
+  rm go.sh
+  bash -c "$(wget -O- https://raw.githubusercontent.com/trojan-gfw/trojan-quickstart/master/trojan-quickstart.sh)"
+}
+######################################
 DELAY=3 # Number of seconds to display results
 
 while true; do
@@ -634,173 +680,202 @@ Please Select:
 
 1. Normal Install (new machine)
 2. Extended Install (V2ray Websocket included)
-3. Install Trojan-Gfw only (If you'd like to manually set up web servers other than nginx)
-4. Install Nginx only (If you'd like to set up Trojan-gfw manually)
-5. Force renew certificate (If you don't trust autorenew)
-6. Remove Trojan-Gfw
-7. Remove V2ray
+3. Check update for Trojan-gfw or V2ray
+4. Install Trojan-Gfw only (If you'd like to manually set up web servers other than nginx)
+5. Install Nginx only (If you'd like to set up Trojan-gfw manually)
+6. Force renew certificate (If you don't trust autorenew)
+7. Remove Trojan-Gfw
+8. Remove V2ray
+9. Uninstall everything
 0. Quit
 
 _EOF_
 
-  read -p "Enter selection [0-7] > "
+  read -p "Enter selection [0-9] > "
 
-  if [[ $REPLY =~ ^[0-7]$ ]]; then
+  if [[ $REPLY =~ ^[0-9]$ ]]; then
     case $REPLY in
       1)
+        clear
         userinput
-        echo "Detecting OS version"
+        clear
+        colorEcho ${INFO} "Detecting OS version"
         osdist
-        echo "Your os codename is $dist"
-        echo "Updating system"
+        colorEcho ${INFO} "Your os codename is $dist $(lsb_release -cs)"
+        colorEcho ${INFO} "Updating system"
         updatesystem
-        echo "installing rely"
-        installdependency
+        colorEcho ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"
+        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
+        colorEcho ${INFO} "Upgrading system"
+        upgradesystem
+        else
+        echo Skipping system upgrade...
+        fi
+        colorEcho ${INFO} "installing dependency"
+        installdependency       
         if isresolved $domain
         then
         :
         else 
-        echo "Resolve error,Please check your domain DNS config and vps firewall !"
+        colorEcho ${ERROR} "Resolve error,Please check your domain DNS config and vps firewall !"
         exit -1
+        clear
         fi
-        echo "Upgrading system"
-        upgradesystem
-        echo "configing firewall"
+        colorEcho ${INFO} "configing firewall"
         openfirewall
         clear
-        echo "installing trojan-gfw"
+        colorEcho ${INFO} "installing trojan-gfw"
         installtrojan-gfw
         clear
-        echo "installing nginx"
+        colorEcho ${INFO} "installing nginx"
         installnginx
         clear
-        echo "installing acme"
+        colorEcho ${INFO} "installing acme"
         installacme
         clear
-        echo "autoconfiging nginx"
+        colorEcho ${INFO} "autoconfiging nginx"
         nginxtrojan
         clear
-        echo "issueing let\'s encrypt certificate"
+        colorEcho ${INFO} "issueing let\'s encrypt certificate"
         issuecert
         clear
-        echo "issue complete,installing certificate"
+        colorEcho ${INFO} "issue complete,installing certificate"
         installcert
         clear
-        echo "certificate install complete!"
-        echo "giving private key read authority"
+        colorEcho ${INFO} "certificate install complete!"
+        colorEcho ${INFO} "giving private key read authority"
         installkey
         clear
-        echo "autoconfiging trojan-gfw"
+        colorEcho ${INFO} "autoconfiging trojan-gfw"
         changepasswd
         clear
-        echo "starting trojan-gfw and nginx | setting up boot autostart"
+        colorEcho ${INFO} "starting trojan-gfw and nginx | setting up boot autostart"
         autostart
         clear
-        echo "Setting up tcp-bbr boost technology"
+        colorEcho ${INFO} "Setting up tcp-bbr boost technology"
         tcp-bbr
         clear
         iptables-persistent
         clear
         trojanclient
-        echo "Your Trojan-Gfw client config"
+        colorEcho ${INFO} "Your Trojan-Gfw client config"
         cat /etc/trojan/client.json
-        echo "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
-        echo "https://github.com/trojan-gfw/trojan/releases/latest"        
-        echo "Install Success,Enjoy it!"
+        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
+        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/releases/latest"        
+        colorEcho ${SUCCESS} "Install Success,Enjoy it!"
         break
         ;;
-      2)      
+      2)
+        clear      
         v2input
-        echo "Detecting OS version"
+        clear
+        colorEcho ${INFO} "Detecting OS version"
         osdist
-        echo "Your os codename is $dist"
-        echo "Updating system"
+        colorEcho ${INFO} "Your os codename is $dist $(lsb_release -cs)"
+        colorEcho ${INFO} "Updating system"
         updatesystem
-        echo "installing rely"
+        colorEcho ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"
+        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
+        colorEcho ${INFO} "Upgrading system"
+        upgradesystem
+        else
+        echo Skipping system upgrade...
+        fi
+        colorEcho ${INFO} "installing dependency"
         installdependency
         if isresolved $domain
         then
         :
         else 
-        echo "Resolve error,Please check your domain DNS config and vps firewall !"
+        colorEcho ${ERROR} "Resolve error,Please check your domain DNS config and vps firewall !"
         exit -1
         fi
-        echo "Upgrading system"
-        upgradesystem
-        echo "configing firewall"
+        colorEcho ${INFO} "configing firewall"
         openfirewall
         clear
-        echo "installing trojan-gfw"
+        colorEcho ${INFO} "installing trojan-gfw"
         installtrojan-gfw
-        echo "installing nginx"
+        colorEcho ${INFO} "installing nginx"
         installnginx
-        echo "installing acme"
+        colorEcho ${INFO} "installing acme"
         installacme
         clear
-        echo "configing v2ray vmess+tls+Websocket"
+        colorEcho ${INFO} "configing v2ray vmess+tls+Websocket"
         nginxv2ray
         clear
-        echo "issueing let\'s encrypt certificate"
+        colorEcho ${INFO} "issueing let\'s encrypt certificate"
         issuecert
-        echo "issueing let\'s encrypt certificate"
+        colorEcho ${INFO} "issueing let\'s encrypt certificate"
         installcert
-        echo "certificate install complete!"
-        echo "giving private key read authority"
+        colorEcho ${INFO} "certificate install complete!"
+        colorEcho ${INFO} "giving private key read authority"
         installkey
         changepasswd
-        echo "installing V2ray"
+        colorEcho ${INFO} "installing V2ray"
         installv2ray
-        echo "starting trojan-gfw v2ray and nginx | setting up boot autostart"
+        colorEcho ${INFO} "starting trojan-gfw v2ray and nginx | setting up boot autostart"
         autostart
-        echo "Setting up tcp-bbr boost technology"
+        colorEcho ${INFO} "Setting up tcp-bbr boost technology"
         tcp-bbr
         iptables-persistent
         clear
         trojanclient
-        echo "Your Trojan-Gfw client config"
+        colorEcho ${INFO} "Your Trojan-Gfw client config"
         cat /etc/trojan/client.json
-        echo "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
-        echo "https://github.com/trojan-gfw/trojan/releases/latest"
+        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
+        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/releases/latest"
         v2rayclient
-        echo "Your V2ray client config"
+        colorEcho ${INFO} "Your V2ray client config"
         cat /etc/v2ray/client.json
-        echo "https://github.com/v2ray/v2ray-core/releases/latest"
-        echo "Install Success,Enjoy it!"
+        colorEcho ${INFO} "https://github.com/v2ray/v2ray-core/releases/latest"
+        colorEcho ${INFO} "Install Success,Enjoy it!"
         break
         ;;
       3)
-        echo "Detecting OS version"
-        osdist
-        echo "Your os codename is $dist"
-        echo "Updating system"
-        updatesystem
-        echo "Upgrading system"
-        upgradesystem
-        echo "configing firewall"
-        openfirewall
-        echo "installing rely"
-        installdependency
-        echo "installing trojan-gfw"
-        installtrojan-gfw
+        checkupdate
         break
         ;;
       4)
-        echo "Detecting OS version"
+        colorEcho ${INFO} "Detecting OS version"
         osdist
-        echo "Your os codename is $dist"
-        echo "Updating system"
+        colorEcho ${INFO} "Your os codename is $dist"
+        colorEcho ${INFO} "Updating system"
         updatesystem
-        echo "Upgrading system"
+        if ! [[ -n "$dist" ]] || prompt ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"; then
+        colorEcho ${INFO} "Upgrading system"
         upgradesystem
-        echo "configing firewall"
+        else
+        echo Skipping system upgrade...
+        fi
+        colorEcho ${INFO} "configing firewall"
         openfirewall
-        echo "installing rely"
+        colorEcho ${INFO} "installing dependency"
         installdependency
-        echo "installing nginx"
-        installnginx
+        colorEcho ${INFO} "installing trojan-gfw"
+        installtrojan-gfw
         break
         ;;
       5)
+        colorEcho ${INFO} "Detecting OS version"
+        osdist
+        colorEcho ${INFO} "Your os codename is $dist"
+        colorEcho ${INFO} "Updating system"
+        updatesystem
+        if ! [[ -n "$dist" ]] || prompt ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"; then
+        colorEcho ${INFO} "Upgrading system"
+        upgradesystem
+        else
+        echo Skipping system upgrade...
+        fi
+        colorEcho ${INFO} "configing firewall"
+        openfirewall
+        colorEcho ${INFO} "installing dependency"
+        installdependency
+        colorEcho ${INFO} "installing nginx"
+        installnginx
+        break
+        ;;
+      6)
         userinput
         osdist
         installdependency
@@ -808,26 +883,35 @@ _EOF_
         then
         :
         else 
-        echo "Resolve error,Please check your domain DNS config and vps firewall !"
+        colorEcho ${ERROR} "Resolve error,Please check your domain DNS config and vps firewall !"
         exit -1
         fi
         renewcert
         break
         ;;
-      6)
+      7)
         removetrojan
+        colorEcho ${SUCCESS} "Remove complete"
         break
         ;;
-      7)
+      8)
         removev2ray
+        colorEcho ${SUCCESS} "Remove complete"
         break
-        ;;            
+        ;;
+      9)
+        removetrojan
+        removev2ray
+        removenginx
+        colorEcho ${SUCCESS} "Remove complete"
+        break
+        ;;          
       0)
         break
         ;;
     esac
   else
-    echo "Invalid entry."
+    colorEcho ${ERROR} "Invalid entry."
     sleep $DELAY
   fi
 done
