@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#Web camouflage.sh
+#Web camouflage-al.sh
 if [ ! -d "/usr/share/nginx/html" ]; then
   mkdir /usr/share/nginx/html
 fi
