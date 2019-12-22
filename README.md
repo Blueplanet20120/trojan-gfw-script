@@ -16,7 +16,7 @@ sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/johnrosen1/trojan-g
 apt/yum install whiptail -y
 sudo bash -c "$(curl -fsSL https://github.com/johnrosen1/trojan-gfw-script/raw/master/trojangui.sh)"
 ```
-附：汉化GUI版本我写着玩的，有问题别来找我。
+附：不保证中文兼容性
 #### Bash Features:
 
 1. Auto install Trojan-GFW NGINX V2ray and Dnsmasq
@@ -32,10 +32,11 @@ sudo bash -c "$(curl -fsSL https://github.com/johnrosen1/trojan-gfw-script/raw/m
 11. Auto Trojan-GFW trojan:// share link and QR code generate
 12. Auto V2ray vmess:// share link generate
 13. Auto https 301 redirect without affecting certificate renew
-14. Support auto vmess + tls + websocket + nginx config
-15. Support manually check for update include both Trojan-gfw and v2ray
-16. Support manually force renew certificate
-17. Support Full Uninstall
+14. Auto enable **TLS1.3 ONLY**
+15. Support auto vmess + tls + websocket + nginx config
+16. Support manually check for update include both Trojan-gfw and v2ray
+17. Support manually force renew certificate
+18. Support Full Uninstall
 
 #### Friendly Reminder:
 1. Please Purchase a domain and finish a dns resolve before running this bash script!
@@ -47,7 +48,7 @@ echo "nameserver 1.1.1.1" > '/etc/resolv.conf'
 4. Please do not any special symbols like "!" in password1 or 2 , or error will occur !
 5. Please do not use enter / in websocket option ,enter someting else like /secret !
 6. For security reasons, system upgrade is not forced ,press [ENTER] to skip or manually enter y to upgrade system.
-7. Due to the lack of support for python3-qrcode in Ubuntu 16.04,Trojan-GFW QR code generating will be skipped !
+7. Trojan-GFW QR code generate will be skipped on os who do not support python3-qrcode!
 8. Due to personal demands , Dnsmasq installation is not forced ,press [ENTER] to skip or manually enter y to install dnsmasq.
 9. If "sudo command not found" , please manually remove "sudo" from the beginning of the command and run as root !
 

@@ -148,13 +148,18 @@ installdependency(){
     yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils python3-qrcode python-pil unzip resolvconf -qq -y
  elif [[ $dist = ubuntu ]]; then
     apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
-    if [[ $(lsb_release -cs) == xenial ]]; then
+    if [[ $(lsb_release -cs) == xenial ]] || [[ $(lsb_release -cs) == trusty ]]; then
       colorEcho ${ERROR} "Ubuntu 16.04 does not support python3-qrcode,Skipping generating QR code!"
       else
         apt-get install python3-qrcode -qq -y
     fi
  elif [[ $dist = debian ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python3-qrcode python-pil unzip resolvconf -qq -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
+    if [[ $(lsb_release -cs) == jessie ]]; then
+      colorEcho ${ERROR} "Debian8 does not support python3-qrcode,Skipping generating QR code!"
+      else
+        apt-get install python3-qrcode -qq -y
+    fi
  else
   clear
     colorEcho ${ERROR} "error can't install dependency"
@@ -302,7 +307,7 @@ changepasswd(){
         "cert": "/etc/trojan/trojan.crt",
         "key": "/etc/trojan/trojan.key",
         "key_password": "",
-        "cipher": "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256",
+        "cipher": "TLS_AES_128_GCM_SHA256",
         "prefer_server_cipher": true,
         "alpn": [
             "http/1.1"
@@ -1103,11 +1108,6 @@ v2rayclient(){
         "protocol": [
           "bittorrent"
         ]
-      },
-      {
-        "type" :"field",
-        "outboundTag": "adblock",
-        "domain": ["geosite:category-ads"]
       }
     ]
   }
@@ -1153,7 +1153,7 @@ checkupdate(){
 ###########Trojan share link########
 trojanlink(){
   cd
-  if [[ $(lsb_release -cs) != xenial ]]; then
+  if [[ $(lsb_release -cs) != xenial ]] || [[ $(lsb_release -cs) == trusty ]] || [[ $(lsb_release -cs) == jessie ]]; then
   wget https://github.com/trojan-gfw/trojan-url/raw/master/trojan-url.py -q
   chmod +x trojan-url.py
   #./trojan-url.py -i /etc/trojan/client.json

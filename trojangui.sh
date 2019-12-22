@@ -105,13 +105,18 @@ installdependency(){
     yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils python3-qrcode python-pil unzip resolvconf -qq -y
  elif [[ $dist = ubuntu ]]; then
     apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
-    if [[ $(lsb_release -cs) == xenial ]]; then
+    if [[ $(lsb_release -cs) == xenial ]] || [[ $(lsb_release -cs) == trusty ]]; then
     	TERM=ansi whiptail --title "Skipping generating QR code!" --infobox "Ubuntu 16.04 does not support python3-qrcode,Skipping generating QR code!" 8 78
       else
         apt-get install python3-qrcode -qq -y
     fi
  elif [[ $dist = debian ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python3-qrcode python-pil unzip resolvconf -qq -y
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
+        if [[ $(lsb_release -cs) == jessie ]]; then
+      colorEcho ${ERROR} "Debian8 does not support python3-qrcode,Skipping generating QR code!"
+      else
+        apt-get install python3-qrcode -qq -y
+    fi
  else
   clear
   TERM=ansi whiptail --title "error can't install dependency" --infobox "error can't install dependency" 8 78
@@ -259,7 +264,7 @@ changepasswd(){
         "cert": "/etc/trojan/trojan.crt",
         "key": "/etc/trojan/trojan.key",
         "key_password": "",
-        "cipher": "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256",
+        "cipher": "TLS_AES_128_GCM_SHA256",
         "prefer_server_cipher": true,
         "alpn": [
             "http/1.1"
@@ -1038,11 +1043,6 @@ v2rayclient(){
         "protocol": [
           "bittorrent"
         ]
-      },
-      {
-        "type" :"field",
-        "outboundTag": "adblock",
-        "domain": ["geosite:category-ads"]
       }
     ]
   }
@@ -1088,7 +1088,7 @@ checkupdate(){
 ###########Trojan share link########
 trojanlink(){
   cd
-  if [[ $(lsb_release -cs) != xenial ]]; then
+  if [[ $(lsb_release -cs) != xenial ]] || [[ $(lsb_release -cs) == trusty ]] || [[ $(lsb_release -cs) == jessie ]]; then
   wget https://github.com/trojan-gfw/trojan-url/raw/master/trojan-url.py -q
   chmod +x trojan-url.py
   #./trojan-url.py -i /etc/trojan/client.json
@@ -1132,10 +1132,10 @@ EOF
 clear
 function advancedMenu() {
     ADVSEL=$(whiptail --title "Trojan-Gfw Script Menu" --menu --nocancel "Choose an option RTFM: https://www.johnrosen1.com/trojan/" 25 78 16 \
-        "1" "正常安装" \
-        "2" "扩展安装（包含V2ray Websocket三件套）" \
-        "3" "检查更新" \
-        "4" "完全卸载" \
+        "1" "正常安裝" \
+        "2" "擴展安裝（包含V2ray Websocket三件套）" \
+        "3" "檢查更新" \
+        "4" "完全卸載" \
         "5" "退出" 3>&1 1>&2 2>&3)
     case $ADVSEL in
         1)
