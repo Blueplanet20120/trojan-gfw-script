@@ -10,16 +10,6 @@ WARNING="33m"   # Warning message
 INFO="93m"     # Info message
 LINK="95m"     # Share Link Message
 #############################
-function prompt() {
-    while true; do
-        read -p "$1 [y/N] " yn
-        case $yn in
-            [Yy] ) return 0;;
-            [Nn]|"" ) return 1;;
-        esac
-    done
-}
-####################################
 colorEcho(){
     COLOR=$1
     echo -e "\033[${COLOR}${@:2}\033[0m"
@@ -46,60 +36,26 @@ isresolved(){
 }
 ###############User input for option1################
 userinput(){
-echo "Hello, "$USER".  This script will help you set up a trojan-gfw server."
-colorEcho ${WARNING} "Please Enter your domain and press [ENTER]: "
-read domain
-  if [[ -z "$domain" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your domain again and press [ENTER]: "
-    read domain
-  fi
-colorEcho ${INFO} "It\'s nice to meet you $domain"
-colorEcho ${WARNING} "Please Enter your desired password1 (NO special symbols like "!" Allowed ) and press [ENTER]: "
-read password1
-  if [[ -z "$password1" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password1 again and press [ENTER]: "
-    read password1
-  fi
-colorEcho ${INFO} "Your password1 is $password1"
-colorEcho ${WARNING} "Please Enter your password2 and press [ENTER]: "
-read password2
-  if [[ -z "$password2" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password2 (NO special symbols like "!" Allowed ) again and press [ENTER]: "
-    read password2
-  fi
-colorEcho ${INFO} "Your password2 is $password2"
+domain=$(whiptail --inputbox --nocancel "朽木不可雕也，糞土之牆不可污也，快输入你的域名并按回车" 8 78 --title "Domain input" 3>&1 1>&2 2>&3)
+password1=$(whiptail --passwordbox --nocancel "別動不動就爆粗口，你把你媽揣兜了隨口就說，快输入你想要的密码一并按回车" 8 78 --title "password1 input" 3>&1 1>&2 2>&3)
+password2=$(whiptail --passwordbox --nocancel "你別逼我在我和你全家之間加動詞或者是名詞啊，快输入想要的密码二并按回车" 8 78 --title "password2 input" 3>&1 1>&2 2>&3)
 }
 ###############OS detect####################
 osdist(){
 
 set -e
  if cat /etc/*release | grep ^NAME | grep CentOS; then
-    echo "==============================================="
-    echo "Installing on CentOS"
-    echo "==============================================="
     dist=centos
  elif cat /etc/*release | grep ^NAME | grep Red; then
-    echo "==============================================="
-    echo "Installing on RedHat"
-    echo "==============================================="
     dist=centos
  elif cat /etc/*release | grep ^NAME | grep Fedora; then
-    echo "================================================"
-    echo "Installing on Fedorea"
-    echo "================================================"
     dist=centos
  elif cat /etc/*release | grep ^NAME | grep Ubuntu; then
-    echo "==============================================="
-    echo "Installing on Ubuntu"
-    echo "==============================================="
     dist=ubuntu
  elif cat /etc/*release | grep ^NAME | grep Debian; then
-    echo "==============================================="
-    echo "Installing on Debian"
-    echo "==============================================="
     dist=debian
  else
-    echo "OS NOT SUPPORTED, couldn't install Trojan-gfw"
+ 	TERM=ansi whiptail --title "OS SUPPORT" --infobox "OS NOT SUPPORTED, couldn't install Trojan-gfw" 8 78
     exit 1;
  fi
 }
@@ -113,7 +69,7 @@ updatesystem(){
     apt-get update -qq
  else
   clear
-    colorEcho ${ERROR} "error can't update system"
+  TERM=ansi whiptail --title "error can't update system" --infobox "error can't update system" 8 78
     exit 1;
  fi
 }
@@ -131,7 +87,7 @@ upgradesystem(){
     apt-get autoremove -qq -y > /dev/null
  else
   clear
-    colorEcho ${ERROR} "error can't upgrade system"
+  TERM=ansi whiptail --title "error can't upgrade system" --infobox "error can't upgrade system" 8 78
     exit 1;
  fi
 }
@@ -149,20 +105,15 @@ installdependency(){
  elif [[ $dist = ubuntu ]]; then
     apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
     if [[ $(lsb_release -cs) == xenial ]] || [[ $(lsb_release -cs) == trusty ]]; then
-      colorEcho ${ERROR} "Ubuntu 16.04 does not support python3-qrcode,Skipping generating QR code!"
+    	TERM=ansi whiptail --title "Skipping generating QR code!" --infobox "Ubuntu 16.04 does not support python3-qrcode,Skipping generating QR code!" 8 78
       else
         apt-get install python3-qrcode -qq -y
     fi
  elif [[ $dist = debian ]]; then
-    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
-    if [[ $(lsb_release -cs) == jessie ]]; then
-      colorEcho ${ERROR} "Debian8 does not support python3-qrcode,Skipping generating QR code!"
-      else
-        apt-get install python3-qrcode -qq -y
-    fi
+    apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python3-qrcode python-pil unzip resolvconf -qq -y
  else
   clear
-    colorEcho ${ERROR} "error can't install dependency"
+  TERM=ansi whiptail --title "error can't install dependency" --infobox "error can't install dependency" 8 78
     exit 1;
  fi
 }
@@ -251,7 +202,7 @@ installnginx(){
     nginxapt
  else
   clear
-    colorEcho ${ERROR} "error can't install nginx"
+  TERM=ansi whiptail --title "error can't install nginx" --infobox "error can't install nginx" 8 78
     exit 1;
  fi
 }
@@ -264,8 +215,8 @@ installacme(){
 }
 ##################################################
 issuecert(){
-  rm -rf /etc/nginx/sites-enabled/*
   rm -rf /etc/nginx/sites-available/*
+  rm -rf /etc/nginx/sites-enabled/*
   rm -rf /etc/nginx/conf.d/*
   touch /etc/nginx/conf.d/default.conf
     cat > '/etc/nginx/conf.d/default.conf' << EOF
@@ -388,7 +339,7 @@ touch /etc/nginx/conf.d/trojan.conf
   if [[ $dist != centos ]]; then
     nginxconf
  else
-    colorEcho ${ERROR} "continuing..."
+ 	TERM=ansi whiptail --title "continuing..." --infobox "continuing..." 8 78
  fi
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
@@ -397,6 +348,15 @@ server {
     location / {
       root /usr/share/nginx/html/;
         index index.html;
+        }
+    location /qbt/ {
+    proxy_pass              http://127.0.0.1:8080/;
+    proxy_set_header        X-Forwarded-Host        $server_name:$server_port;
+    proxy_hide_header       Referer;
+    proxy_hide_header       Origin;
+    proxy_set_header        Referer                 '';
+    proxy_set_header        Origin                  '';
+    # add_header              X-Frame-Options         "SAMEORIGIN"; # not needed since 4.1.0
         }
   add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
 }
@@ -751,7 +711,7 @@ systemctl daemon-reload
 ##########iptables-persistent########
 iptables-persistent(){
   if [[ $dist = centos ]]; then
-    yum install iptables-persistent -q -y > /dev/null
+    :
  elif [[ $dist = ubuntu ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get install iptables-persistent -q -y > /dev/null
@@ -760,14 +720,14 @@ iptables-persistent(){
     apt-get install iptables-persistent -q -y > /dev/null
  else
   clear
-    colorEcho ${ERROR} "error can't install iptables-persistent"
+  TERM=ansi whiptail --title "error can't install iptables-persistent" --infobox "error can't install iptables-persistent" 8 78
     exit 1;
  fi
 }
 ############DNSMASQ#################
 dnsmasq(){
     if [[ $dist = centos ]]; then
-    :
+    yum install dnsmasq -q -y > /dev/null
  elif [[ $dist = ubuntu ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get install dnsmasq -q -y > /dev/null
@@ -776,7 +736,7 @@ dnsmasq(){
     apt-get install dnsmasq -q -y > /dev/null
  else
   clear
-    colorEcho ${ERROR} "error can't install dnsmasq"
+  TERM=ansi whiptail --title "error can't install dnsmasq" --infobox "error can't install dnsmasq" 8 78
     exit 1;
  fi
  if [[ $dist = ubuntu ]]; then
@@ -804,38 +764,54 @@ echo "nameserver 127.0.0.1" > '/etc/resolv.conf'
 systemctl restart dnsmasq
 systemctl enable dnsmasq
 }
+############Qbittorrent#############
+qbittorrent(){
+  if [[ $dist = centos ]]; then
+    yum install qbittorrent-nox -qq -y
+ elif [[ $dist = ubuntu ]]; then
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install qbittorrent-nox -qq -y
+ elif [[ $dist = debian ]]; then
+    export DEBIAN_FRONTEND=noninteractive 
+    apt-get install qbittorrent-nox -qq -y
+ else
+  clear
+  TERM=ansi whiptail --title "error can't install qbittorrent-nox" --infobox "error can't install qbittorrent-nox" 8 78
+    exit 1;
+ fi
+      cat > '/etc/systemd/system/qbittorrent.service' << EOF
+[Unit]
+Description=qBittorrent Daemon Service
+Documentation=man:qbittorrent-nox(1)
+Wants=network-online.target
+After=network-online.target nss-lookup.target
+
+[Service]
+# if you have systemd >= 240, you probably want to use Type=exec instead
+Type=simple
+User=root
+ExecStart=/usr/bin/qbittorrent-nox
+TimeoutStopSec=infinity
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable qbittorrent.service
+systemctl start qbittorrent.service
+}
 ############Set UP V2ray############
 v2input(){
-echo "Hello, "$USER".  This script will help you set up a trojan-gfw server."
-colorEcho ${WARNING} "Please Enter your domain and press [ENTER]: "
-read domain
-  if [[ -z "$domain" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your domain again and press [ENTER]: "
-    read domain
-  fi
-colorEcho ${INFO} "It\'s nice to meet you $domain"
-colorEcho ${WARNING} "Please Enter your desired password1 (NO special symbols like "!" Allowed ) and press [ENTER]: "
-read password1
-  if [[ -z "$password1" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password1 again and press [ENTER]: "
-    read password1
-  fi
-colorEcho ${INFO} "Your password1 is $password1"
-colorEcho ${WARNING} "Please Enter your desired password2 (NO special symbols like "!" Allowed ) and press [ENTER]: "
-read password2
-  if [[ -z "$password2" ]]; then
-    colorEcho ${ERROR} "INPUT ERROR! Please Enter your password2 again and press [ENTER]: "
-    read password2
-  fi
-colorEcho ${INFO} "Your password2 is $password2"
-colorEcho ${WARNING} "Please Enter your desired Websocket path (such as /secret )and press [ENTER]: "
-read path
-colorEcho ${INFO} "Your path is $path"
+domain=$(whiptail --inputbox --nocancel "朽木不可雕也，糞土之牆不可污也，快输入你的域名并按回车" 8 78 --title "Domain input" 3>&1 1>&2 2>&3)
+password1=$(whiptail --passwordbox --nocancel "別動不動就爆粗口，你把你媽揣兜了隨口就說，快输入你想要的密码一并按回车" 8 78 --title "password1 input" 3>&1 1>&2 2>&3)
+password2=$(whiptail --passwordbox --nocancel "你別逼我在我和你全家之間加動詞或者是名詞啊，快输入想要的密码二并按回车" 8 78 --title "password2 input" 3>&1 1>&2 2>&3)
+path=$(whiptail --inputbox --nocancel "Put your thinking cap on.，快输入你的想要的Websocket路径并按回车" 8 78 /secret --title "Websocket path input" 3>&1 1>&2 2>&3)
 }
 installv2ray(){
   bash <(curl -L -s https://install.direct/go.sh) > /dev/null
   rm -rf /etc/v2ray/config.json
-  colorEcho ${INFO} "generating random uuid"
   uuid=$(/usr/bin/v2ray/v2ctl uuid)
   cat > "/etc/v2ray/config.json" << EOF
 {
@@ -888,7 +864,8 @@ installv2ray(){
         "domain": [
         "baidu.com",
         "qq.com",
-        "sina.com"
+        "sina.com",
+        "geosite:cn"
       ],
       "outboundTag": "blocked"
       }
@@ -908,11 +885,11 @@ touch /etc/nginx/conf.d/trojan.conf
   if [[ $dist != centos ]]; then
     nginxconf
  else
-    colorEcho ${ERROR} "continuing..."
+ 	TERM=ansi whiptail --title "continuing..." --infobox "continuing..." 8 78
  fi
   cat > '/etc/nginx/conf.d/trojan.conf' << EOF
 server {
-  listen 127.0.0.1:80; #放在Trojan后面即可做伪装也可以是真正的网站
+  listen 127.0.0.1:80;
     server_name $domain;
     location / {
       root /usr/share/nginx/html/;
@@ -930,6 +907,15 @@ server {
         proxy_set_header Host @http_host;
         proxy_set_header X-Real-IP @remote_addr;
         proxy_set_header X-Forwarded-For @proxy_add_x_forwarded_for;
+        }
+    location /qbt/ {
+    proxy_pass              http://127.0.0.1:8080/;
+    proxy_set_header        X-Forwarded-Host        $server_name:$server_port;
+    proxy_hide_header       Referer;
+    proxy_hide_header       Origin;
+    proxy_set_header        Referer                 '';
+    proxy_set_header        Origin                  '';
+    # add_header              X-Frame-Options         "SAMEORIGIN"; # not needed since 4.1.0
         }
   add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
 }
@@ -1086,10 +1072,6 @@ v2rayclient(){
         "allowInsecureCiphers": false,
         "disableSystemRoot": false
       },
-      	"sockopt": {
-			"mark": 255
-			}
-		},
       "mux": {
         "enabled": false
       }
@@ -1147,6 +1129,11 @@ v2rayclient(){
         "protocol": [
           "bittorrent"
         ]
+      },
+      {
+        "type" :"field",
+        "outboundTag": "adblock",
+        "domain": ["geosite:category-ads"]
       }
     ]
   }
@@ -1192,7 +1179,7 @@ checkupdate(){
 ###########Trojan share link########
 trojanlink(){
   cd
-  if [[ $(lsb_release -cs) != xenial ]] || [[ $(lsb_release -cs) == trusty ]] || [[ $(lsb_release -cs) == jessie ]]; then
+  if [[ $(lsb_release -cs) != xenial ]]; then
   wget https://github.com/trojan-gfw/trojan-url/raw/master/trojan-url.py -q
   chmod +x trojan-url.py
   #./trojan-url.py -i /etc/trojan/client.json
@@ -1232,57 +1219,56 @@ EOF
   rm -rf json2vmess.py
   colorEcho ${INFO} "Please manually run cat /etc/v2ray/$uuid.txt to show share link again!"
 }
-####################################
-DELAY=3 # Number of seconds to display results
-
-while true; do
-  clear
-  cat << _EOF_
-This script will help you set up a trojan-gfw server in an extremely fast way.
-For more Info: https://www.johnrosen1.com/trojan/
-If you are not sure,Please choose option 1 or 2 and press [ENTER] to skip all optional options !
-Please Select:
-
-1. Normal Install (new machine)
-2. Extended Install (V2ray Websocket included)
-3. Check update for Trojan-gfw or V2ray
-4. Install Trojan-Gfw only (If you'd like to manually set up web servers other than nginx)
-5. Install Nginx only (If you'd like to set up Trojan-gfw manually)
-6. Force renew certificate (If you don't trust autorenew)
-7. Remove Trojan-Gfw
-8. Remove V2ray
-9. Uninstall everything
-0. Quit
-
-_EOF_
-
-  read -p "Enter selection [0-9] > "
-
-  if [[ $REPLY =~ ^[0-9]$ ]]; then
-    case $REPLY in
-      1)
+##################################
+clear
+function advancedMenu() {
+    ADVSEL=$(whiptail --title "Trojan-Gfw Script Menu --Qbittorrent version" --menu --nocancel "Choose an option" 25 78 16 \
+        "1" "正常安装" \
+        "2" "扩展安装（包含V2ray Websocket三件套）" \
+        "3" "检查更新" \
+        "4" "完全卸载" \
+        "5" "退出" 3>&1 1>&2 2>&3)
+    case $ADVSEL in
+        1)
         clear
         userinput
+    if (whiptail --title "System Upgrade" --yesno --defaultno "System Upgrade?" 8 78); then
+    	system_upgrade=1
+		else
+    	system_upgrade=0
+		fi
+		if (whiptail --title "Dnsmasq Install" --yesno --defaultno "Install Dnsmasq?" 8 78); then
+    	dnsmasq_install=1
+		else
+    	dnsmasq_install=0
+		fi
+    if (whiptail --title "Qbittorrent Install" --yesno "Install Qbittorrent?" 8 78); then
+      qbt_install=1
+    else
+      qbt_install=0
+    fi
         clear
         colorEcho ${INFO} "Detecting OS version"
         osdist
         colorEcho ${INFO} "Your os codename is $dist $(lsb_release -cs)"
         colorEcho ${INFO} "Updating system"
         updatesystem
-        colorEcho ${WARNING} "Dnsmasq can acclerate dns resolve by caching dns requests,continue? If you are unsure,Please press [ENTER] to skip"
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
-        colorEcho ${INFO} "Installing dnsmasq"
-        dnsmasq
-        else
-        echo Skipping dnsmasq config...
-        fi
-        colorEcho ${WARNING} "Upgrade system may cause unwanted bugs...,continue? If you are unsure,Please press [ENTER] to skip"
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
-        colorEcho ${INFO} "Upgrading system"
-        upgradesystem
-        else
-        echo Skipping system upgrade...
-        fi
+        if [[ $system_upgrade = 1 ]]; then
+		upgradesystem
+		else
+		:
+		fi
+    if [[ $dnsmasq_install = 1 ]]; then
+		dnsmasq
+		else
+		:
+		fi
+    if [[ $qbt_install = 1 ]]; then
+    colorEcho ${INFO} "qBittorrent"
+    qbittorrent
+    else
+    :
+    fi
         clear
         colorEcho ${INFO} "installing dependency"
         installdependency       
@@ -1334,35 +1320,51 @@ _EOF_
         cat /etc/trojan/client2.json
         trojanlink
         colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
-        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/releases/latest"        
-        colorEcho ${SUCCESS} "Install Success,Enjoy it!"
+        colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/releases/latest"
+        colorEcho ${INFO} "Please visit the link below to visit your qBittorrent webui default username admin default password adminadmin"
+        colorEcho ${LINK} "https://$domain/qbt/"        
+        whiptail --title "Option 1" --msgbox "安装成功，享受吧！多行不義必自斃，子姑待之。" 8 78
 	colorEcho ${INFO} "Setting up tcp-bbr boost technology"
         tcp-bbr
-        break
         ;;
-      2)
-        clear      
+        2)    
         v2input
+    if (whiptail --title "System Upgrade" --yesno --defaultno "System Upgrade?" 8 78); then
+    	system_upgrade=1
+		else
+    	system_upgrade=0
+		fi
+		if (whiptail --title "Dnsmasq Install" --yesno --defaultno "Install dnsmasq?." 8 78); then
+    	dnsmasq_install=1
+		else
+    	dnsmasq_install=0
+		fi
+    if (whiptail --title "Qbittorrent Install" --yesno "Install Qbittorrent?" 8 78); then
+      qbt_install=1
+    else
+      qbt_install=0
+    fi
         clear
         colorEcho ${INFO} "Detecting OS version"
         osdist
         colorEcho ${INFO} "Your os codename is $dist $(lsb_release -cs)"
         colorEcho ${INFO} "Updating system"
         updatesystem
-        colorEcho ${WARNING} "Dnsmasq can acclerate dns resolve by caching dns requests,continue? If you are unsure,Please press [ENTER] to skip!"
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
-        colorEcho ${INFO} "Installing dnsmasq"
-        dnsmasq
-        else
-        echo Skipping dnsmasq config...
-        fi
-        colorEcho ${WARNING} "Upgrade system may cause unwanted bugs...,continue? If you are unsure,Please press [ENTER] to skip!"
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "continue?"; then
-        colorEcho ${INFO} "Upgrading system"
-        upgradesystem
-        else
-        echo Skipping system upgrade...
-        fi
+        if [[ $system_upgrade = 1 ]]; then
+		upgradesystem
+		else
+		:
+		fi
+    if [[ $dnsmasq_install = 1 ]]; then
+		dnsmasq
+		else
+		:
+		fi
+    if [[ $qbt_install = 1 ]]; then
+    qbittorrent
+    else
+    :
+    fi
         clear
         colorEcho ${INFO} "installing dependency"
         installdependency
@@ -1414,92 +1416,29 @@ _EOF_
         v2raylink
         colorEcho ${INFO} "https://github.com/v2ray/v2ray-core/releases/latest"
         colorEcho ${INFO} "Install Success,Enjoy it!"
-        colorEcho ${INFO} "Setting up tcp-bbr boost technology"
+        colorEcho ${INFO} "Please visit the link below to visit your qBittorrent webui default username admin default password adminadmin"
+        colorEcho ${LINK} "https://$domain/qbt/"
+        whiptail --title "Option 1" --msgbox "安装成功,享受吧! 多行不義必自斃，子姑待之。" 8 78
+	colorEcho ${INFO} "Setting up tcp-bbr boost technology"
         tcp-bbr
-        break
         ;;
-      3)
+       	3)
         checkupdate
         break
         ;;
-      4)
-        colorEcho ${INFO} "Detecting OS version"
-        osdist
-        colorEcho ${INFO} "Your os codename is $dist"
-        colorEcho ${INFO} "Updating system"
-        updatesystem
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"; then
-        colorEcho ${INFO} "Upgrading system"
-        upgradesystem
-        else
-        echo Skipping system upgrade...
-        fi
-        colorEcho ${INFO} "configing firewall"
-        openfirewall
-        colorEcho ${INFO} "installing dependency"
-        installdependency
-        colorEcho ${INFO} "installing trojan-gfw"
-        installtrojan-gfw
-        break
-        ;;
-      5)
-        colorEcho ${INFO} "Detecting OS version"
-        osdist
-        colorEcho ${INFO} "Your os codename is $dist"
-        colorEcho ${INFO} "Updating system"
-        updatesystem
-        if ! [[ -n "$dist" ]] || prompt ${WARNING} "Upgrade system may cause unwanted bugs...,continue?"; then
-        colorEcho ${INFO} "Upgrading system"
-        upgradesystem
-        else
-        echo Skipping system upgrade...
-        fi
-        colorEcho ${INFO} "configing firewall"
-        openfirewall
-        colorEcho ${INFO} "installing dependency"
-        installdependency
-        colorEcho ${INFO} "installing nginx"
-        installnginx
-        break
-        ;;
-      6)
-        userinput
-        osdist
-        installdependency
-        if isresolved $domain
-        then
-        :
-        else 
-        colorEcho ${ERROR} "Resolve error,Please check your domain DNS config and vps firewall !"
-        exit -1
-        fi
-        renewcert
-        break
-        ;;
-      7)
-        removetrojan
-        colorEcho ${SUCCESS} "Remove complete"
-        break
-        ;;
-      8)
-        removev2ray
-        colorEcho ${SUCCESS} "Remove complete"
-        break
-        ;;
-      9)
+      	4)
         removetrojan
         removev2ray
         removenginx
         colorEcho ${SUCCESS} "Remove complete"
         break
-        ;;          
-      0)
-        break
+        ;;
+        5)
+        exit
+        whiptail --title "脚本已退出" --msgbox "脚本已退出" 8 78
         ;;
     esac
-  else
-    colorEcho ${ERROR} "Invalid entry."
-    sleep $DELAY
-  fi
-done
+}
+export LANG=C.UTF-8
+advancedMenu
 echo "Program terminated."

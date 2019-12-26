@@ -102,7 +102,7 @@ openfirewall(){
 installdependency(){
   echo "installing trojan-gfw nginx and acme"
   if [[ $dist = centos ]]; then
-    yum install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils python3-qrcode python-pil unzip resolvconf -qq -y
+    yum install -y sudo curl socat wget gnupg gnupg2 python3-qrcode unzip bind-utils
  elif [[ $dist = ubuntu ]]; then
     apt-get install sudo curl socat xz-utils wget apt-transport-https gnupg gnupg2 dnsutils lsb-release python-pil unzip resolvconf -qq -y
     if [[ $(lsb_release -cs) == xenial ]] || [[ $(lsb_release -cs) == trusty ]]; then
@@ -129,7 +129,46 @@ installtrojan-gfw(){
 }
 ##########nginx install for cnetos#########
 nginxyum(){
-  yum install nginx -q -y > /dev/null
+  rpm -Uvh http://nginx.org/packages/centos/7/noarch/RPMS/nginx-release-centos-7-0.el7.ngx.noarch.rpm
+  yum install nginx -q -y
+  rm -rf /etc/nginx/nginx.conf
+  touch /etc/nginx/nginx.conf
+    cat > '/etc/nginx/nginx.conf' << EOF
+user nginx;
+worker_processes auto;
+
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+events {
+  worker_connections 1024;
+  use epoll;
+  multi_accept on;
+}
+
+http {
+  aio threads;
+  charset UTF-8;
+  tcp_nodelay on;
+  tcp_nopush on;
+  server_tokens off;
+
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+
+  access_log /var/log/nginx/access.log;
+
+
+  log_format  main  '@remote_addr - @remote_user [$time_local] "@request" '
+    '@status $body_bytes_sent "@http_referer" '
+    '"@http_user_agent" "@http_x_forwarded_for"';
+
+  sendfile on;
+  gzip on;
+
+  include /etc/nginx/conf.d/*.conf; 
+}
+EOF
 }
 ##########nginx install for debian################
 nginxapt(){
@@ -182,7 +221,8 @@ installacme(){
 }
 ##################################################
 issuecert(){
-  systemctl start nginx
+  rm -rf /etc/nginx/sites-available/*
+  rm -rf /etc/nginx/sites-enabled/*
   rm -rf /etc/nginx/conf.d/*
   touch /etc/nginx/conf.d/default.conf
     cat > '/etc/nginx/conf.d/default.conf' << EOF
@@ -231,7 +271,7 @@ server {
     #}
 }
 EOF
-  nginx -s reload
+  systemctl start nginx
   sudo ~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --force --log
 }
 ##################################################
@@ -668,7 +708,7 @@ systemctl daemon-reload
 ##########iptables-persistent########
 iptables-persistent(){
   if [[ $dist = centos ]]; then
-    yum install iptables-persistent -q -y > /dev/null
+    :
  elif [[ $dist = ubuntu ]]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get install iptables-persistent -q -y > /dev/null
@@ -783,8 +823,7 @@ installv2ray(){
         "domain": [
         "baidu.com",
         "qq.com",
-        "sina.com",
-        "geosite:cn"
+        "sina.com"
       ],
       "outboundTag": "blocked"
       }
@@ -1142,14 +1181,14 @@ function advancedMenu() {
         clear
         userinput
         if (whiptail --title "System Upgrade" --yesno --defaultno "System Upgrade?" 8 78); then
-    	system_upgrade = 1
+    	system_upgrade=1
 		else
-    	system_upgrade = 0
+    	system_upgrade=0
 		fi
-		if (whiptail --title "Dnsmasq Install" --yesno --defaultno "This is an example of a yes/no box." 8 78); then
-    	dnsmasq_install = 1
+		if (whiptail --title "Dnsmasq Install" --yesno --defaultno "Install Dnsmasq?" 8 78); then
+    	dnsmasq_install=1
 		else
-    	dnsmasq_install = 0
+    	dnsmasq_install=0
 		fi
         clear
         colorEcho ${INFO} "Detecting OS version"
@@ -1209,9 +1248,6 @@ function advancedMenu() {
         colorEcho ${INFO} "starting trojan-gfw and nginx | setting up boot autostart"
         autostart
         clear
-        colorEcho ${INFO} "Setting up tcp-bbr boost technology"
-        tcp-bbr
-        clear
         iptables-persistent
         clear
         trojanclient
@@ -1223,6 +1259,8 @@ function advancedMenu() {
         colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/wiki/Mobile-Platforms"
         colorEcho ${INFO} "https://github.com/trojan-gfw/trojan/releases/latest"        
         whiptail --title "Option 1" --msgbox "安装成功，享受吧！多行不義必自斃，子姑待之。RTFM: https://www.johnrosen1.com/trojan/" 8 78
+	colorEcho ${INFO} "Setting up tcp-bbr boost technology"
+        tcp-bbr
         ;;
         2)    
         v2input
@@ -1287,8 +1325,6 @@ function advancedMenu() {
         installv2ray
         colorEcho ${INFO} "starting trojan-gfw v2ray and nginx | setting up boot autostart"
         autostart
-        colorEcho ${INFO} "Setting up tcp-bbr boost technology"
-        tcp-bbr
         iptables-persistent
         clear
         trojanclient
@@ -1306,6 +1342,8 @@ function advancedMenu() {
         colorEcho ${INFO} "https://github.com/v2ray/v2ray-core/releases/latest"
         colorEcho ${INFO} "Install Success,Enjoy it!"
         whiptail --title "Option 1" --msgbox "安装成功,享受吧! 多行不義必自斃，子姑待之。 RTFM: https://www.johnrosen1.com/trojan/" 8 78
+	colorEcho ${INFO} "Setting up tcp-bbr boost technology"
+        tcp-bbr
         ;;
        	3)
         checkupdate
