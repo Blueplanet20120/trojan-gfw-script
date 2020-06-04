@@ -23,7 +23,7 @@
 
 #Run me with:
 
-#apt-get update && apt-get install sudo curl -y || (yum update -y && yum install sudo curl -y) && sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/johnrosen1/vpstoolbox/master/vps.sh)"
+#apt-get update && apt-get install sudo curl -y && sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/johnrosen1/vpstoolbox/master/vps.sh)"
 
 #                 _              _ _               
 #__   ___ __  ___| |_ ___   ___ | | |__   _____  __
@@ -45,6 +45,11 @@ fi
 if [[ $(uname -m 2> /dev/null) != x86_64 ]]; then
 	echo Please run this script on x86_64 machine.
 	exit 1
+fi
+
+if [[ $(free -m  | grep Mem | awk '{print $2}' 2> /dev/null) -le "400" ]]; then
+  echo Please run this script on machine with more than 500MB free ram.
+  exit 1
 fi
 
 if [[ $(df $PWD | awk '/[0-9]%/{print $(NF-2)}' 2> /dev/null) -le "3000000" ]]; then
@@ -225,6 +230,7 @@ setlanguage(){
 	set +e
 	if [[ ! -d /root/.trojan/ ]]; then
 		mkdir /root/.trojan/
+		mkdir /etc/certs/
 	fi
 	if [[ -f /root/.trojan/language.json ]]; then
 		language="$( jq -r '.language' "/root/.trojan/language.json" )"
@@ -248,7 +254,7 @@ LANGUAGE="zh_TW.UTF-8"
 LANG="zh_TW.UTF-8"
 LC_ALL="zh_TW.UTF-8"
 EOF
-apt-get install manpages-zh -y
+#apt-get install manpages-zh -y
 	cat > '/root/.trojan/language.json' << EOF
 {
   "language": "$language"
@@ -321,7 +327,7 @@ issuecert(){
 	set +e
 	clear
 	colorEcho ${INFO} "申请(issuing) let\'s encrypt certificate"
-	if [[ -f /root/.acme.sh/${domain}_ecc/fullchain.cer ]] && [[ -f /root/.acme.sh/${domain}_ecc/${domain}.key ]] || [[ ${othercert} == 1 ]]; then
+	if [[ -f /etc/certs/${domain}_ecc/fullchain.cer ]] && [[ -f /etc/certs/${domain}_ecc/${domain}.key ]] || [[ ${othercert} == 1 ]]; then
 		TERM=ansi whiptail --title "证书已有，跳过申请" --infobox "证书已有，跳过申请。。。" 8 78
 		else
 	rm -rf /etc/nginx/sites-available/* &
@@ -341,7 +347,7 @@ EOF
 	installacme
 	clear
 	colorEcho ${INFO} "测试证书申请ing(test issuing) let\'s encrypt certificate"
-	~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --force --test --log --reloadcmd "systemctl reload trojan || true && nginx -s reload"
+	~/.acme.sh/acme.sh --issue --nginx --cert-home /etc/certs -d $domain -k ec-256 --force --test --log --reloadcmd "systemctl reload trojan || true && nginx -s reload"
 	if [[ $? != 0 ]]; then
 	colorEcho ${ERROR} "证书申请测试失败，请检查VPS控制面板防火墙(80 443)是否打开!!!"
 	colorEcho ${ERROR} "请访问https://letsencrypt.status.io/检测Let's encrypt服务是否正常!!!"
@@ -350,7 +356,7 @@ EOF
 	fi 
 	clear
 	colorEcho ${INFO} "正式证书申请ing(issuing) let\'s encrypt certificate"
-	~/.acme.sh/acme.sh --issue --nginx -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload"
+	~/.acme.sh/acme.sh --issue --nginx --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload"
 	if [[ $? != 0 ]]; then
 	colorEcho ${ERROR} "证书申请测试失败，请检查VPS控制面板防火墙(80 443)是否打开!!!"
 	colorEcho ${ERROR} "请访问https://letsencrypt.status.io/检测Let's encrypt服务是否正常!!!"
@@ -409,15 +415,8 @@ install_status="$( jq -r '.installed' "/root/.trojan/config.json" )"
 
 clear
 if [[ ${install_status} == 1 ]]; then
-if (whiptail --title "Installed Detected" --defaultno --yesno "检测到已安装，是否继续?" 8 78); then
-    if (whiptail --title "Installed Detected" --defaultno --yesno "检测到已安装，是否重新设置具体参数?" 8 78); then
-    :
-    else
-    readconfig
-    fi
-    else
-    advancedMenu
-    fi
+	whiptail --title "Installed" --msgbox "Installed,reading configuration" 8 78
+	readconfig
 fi
 
 whiptail --clear --ok-button "吾意已決 立即執行" --backtitle "Hi , Please choose carefully!" --title "User choice" --checklist --separate-output --nocancel "Please press space to choose carefully !!!" 24 52 16 \
@@ -426,23 +425,25 @@ whiptail --clear --ok-button "吾意已決 立即執行" --backtitle "Hi , Pleas
 "1" "System Upgrade" on \
 "2" "Enable BBR(TCP-Turbo)" on \
 "3" "Docker" on \
+"4" "PHP" on \
 "代理" "Proxy" on  \
-"4" "Trojan-GFW" on \
-"5" "Dnscrypt-proxy(Dns encryption)" on \
+"5" "Trojan-GFW" on \
+"6" "Dnscrypt-proxy(Dns encryption)" on \
 "下载" "Download" on  \
-"6" "Qbittorrent(Bittorrent Client)" off \
-"7" "Bittorrent-Tracker" on \
-"8" "Aria2" on \
-"9" "Filebrowser(File manager)" on \
+"7" "Qbittorrent(Bittorrent Client)" off \
+"8" "Bt-Tracker(Node.js Version)" on \
+"9" "Aria2" on \
+"10" "Filebrowser(File manager)" on \
 "状态" "Status" on  \
-"10" "Netdata(Server status monitor)" on \
-"速度" "Speedtest" on  \
-"11" "Speedtest(Docker Version)" on \
+"11" "Netdata(Server status monitor)" on \
+"测速" "Speedtest" on  \
+"12" "Speedtest(Docker Version)" on \
+"数据库" "Database" on  \
+"13" "MariaDB" on \
 "其他" "Others" on  \
-"12" "OPENSSL" off \
-"13" "BBRPLUS" off \
-"14" "Tor-Relay" off \
-"15" "Enable TLS1.3 only" off 2>results
+"14" "OPENSSL" off \
+"15" "Tor-Relay" off \
+"16" "Enable TLS1.3 only" off 2>results
 
 while read choice
 do
@@ -461,39 +462,42 @@ do
 		install_docker=1
 		;;
 		4)
+		install_php=1
+		;;
+		5)
 		install_trojan=1
 		;;
-		5) 
+		6) 
 		dnsmasq_install=1
 		;;
-		6)
+		7)
 		install_qbt=1
 		;;
-		7)
+		8)
 		install_tracker=1
 		;;
-		8)
+		9)
 		install_aria=1
 		;;
-		9)
+		10)
 		install_file=1
 		;;
-		10)
+		11)
 		install_netdata=1
 		;;
-		11)
+		12)
 		install_speedtest=1
 		;;
-		12)
-		install_openssl=1
-		;;
 		13)
-		install_bbrplus=1
+		install_mariadb=1
 		;;
 		14)
+		install_openssl=1
+		;;
+		15)
 		install_tor=1
 		;;
-		15) 
+		16) 
 		tls13only=1
 		;;
 		*)
@@ -522,34 +526,25 @@ fi
 while [[ -z ${domain} ]]; do
 domain=$(whiptail --inputbox --nocancel "Please enter your domain(请輸入你的域名)(请先完成A/AAAA解析 https://dnschecker.org/)" 8 78 --title "Domain input" 3>&1 1>&2 2>&3)
 done
-if (whiptail --title "hostname" --yesno "Change hostname to your domain(修改hostname为域名)?" 8 78); then
-	hostnamectl set-hostname $domain
-	if grep -q "${domain}" /etc/hosts
-		then
-		:
-		else
-	echo "" >> /etc/hosts
-	echo "${myip} ${domain}" >> /etc/hosts
-	fi
-fi
+hostnamectl set-hostname $domain
 if [[ ${install_trojan} = 1 ]]; then
 	while [[ -z ${password1} ]]; do
 password1=$(whiptail --passwordbox --nocancel "Trojan-GFW Password One(若不確定，請直接回車，会随机生成)" 8 78 --title "password1 input" 3>&1 1>&2 2>&3)
 if [[ -z ${password1} ]]; then
-	password1=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '' )
+	password1=$(head /dev/urandom | tr -dc a-z0-9 | head -c 10 ; echo '' )
 	fi
 done
 while [[ -z ${password2} ]]; do
 password2=$(whiptail --passwordbox --nocancel "Trojan-GFW Password Two(若不確定，請直接回車，会随机生成)" 8 78 --title "password2 input" 3>&1 1>&2 2>&3)
 if [[ -z ${password2} ]]; then
-	password2=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 15 ; echo '' )
+	password2=$(head /dev/urandom | tr -dc a-z0-9 | head -c 10 ; echo '' )
 	fi
 done
 fi
 ###################################
 	if [[ $install_qbt = 1 ]]; then
 		while [[ -z $qbtpath ]]; do
-		qbtpath=$(whiptail --inputbox --nocancel "Qbittorrent Path(路径)" 8 78 /myqbt/ --title "Qbittorrent path input" 3>&1 1>&2 2>&3)
+		qbtpath=$(whiptail --inputbox --nocancel "Qbittorrent Path(路径)" 8 78 /${password1}_qbt/ --title "Qbittorrent path input" 3>&1 1>&2 2>&3)
 		done
 	fi
 #####################################
@@ -558,14 +553,14 @@ fi
 		trackerpath=$(whiptail --inputbox --nocancel "Bittorrent-Tracker Path(路径)" 8 78 /announce --title "Bittorrent-Tracker path input" 3>&1 1>&2 2>&3)
 		done
 		while [[ -z ${trackerstatuspath} ]]; do
-		trackerstatuspath=$(whiptail --inputbox --nocancel "Bittorrent-Tracker Status Path(状态路径)" 8 78 /mytracker --title "Bittorrent-Tracker status path input" 3>&1 1>&2 2>&3)
+		trackerstatuspath=$(whiptail --inputbox --nocancel "Bittorrent-Tracker Status Path(状态路径)" 8 78 /${password1}_tracker --title "Bittorrent-Tracker status path input" 3>&1 1>&2 2>&3)
 		done
 	fi
 ####################################
 	if [[ ${install_aria} == 1 ]]; then
 		ariaport=$(shuf -i 10000-19000 -n 1)
 		while [[ -z ${ariapath} ]]; do
-		ariapath=$(whiptail --inputbox --nocancel "Aria2 RPC Path(路径)" 8 78 /myaria2 --title "Aria2 path input" 3>&1 1>&2 2>&3)
+		ariapath=$(whiptail --inputbox --nocancel "Aria2 RPC Path(路径)" 8 78 /${password1}_aria2/ --title "Aria2 path input" 3>&1 1>&2 2>&3)
 		done
 		while [[ -z $ariapasswd ]]; do
 		ariapasswd=$(whiptail --passwordbox --nocancel "Aria2 rpc token(密码)" 8 78 --title "Aria2 rpc token input" 3>&1 1>&2 2>&3)
@@ -577,13 +572,13 @@ fi
 ####################################
 	if [[ ${install_file} = 1 ]]; then
 		while [[ -z ${filepath} ]]; do
-		filepath=$(whiptail --inputbox --nocancel "Filebrowser路径" 8 78 /myfile/ --title "Filebrowser path input" 3>&1 1>&2 2>&3)
+		filepath=$(whiptail --inputbox --nocancel "Filebrowser路径" 8 78 /${password1}_file/ --title "Filebrowser path input" 3>&1 1>&2 2>&3)
 		done
 	fi
 ####################################
 	if [[ ${install_netdata} = 1 ]]; then
 		while [[ -z ${netdatapath} ]]; do
-		netdatapath=$(whiptail --inputbox --nocancel "Netdata路径" 8 78 /mynetdata/ --title "Netdata path input" 3>&1 1>&2 2>&3)
+		netdatapath=$(whiptail --inputbox --nocancel "Netdata路径" 8 78 /${password1}_netdata/ --title "Netdata path input" 3>&1 1>&2 2>&3)
 		done
 	fi
 ####################################
@@ -596,7 +591,7 @@ fi
 	done
 	fi
 ####################################
-if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /etc/trojan/trojan.crt ]] || [[ -f /root/.acme.sh/${domain}_ecc/fullchain.cer ]]; then
+if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /etc/trojan/trojan.crt ]] || [[ -f /etc/certs/${domain}_ecc/fullchain.cer ]]; then
 		TERM=ansi whiptail --title "证书已有，跳过申请" --infobox "证书已有，跳过申请。。。" 8 78
 		else
 	if (whiptail --title "api" --yesno "使用 (use) api申请证书(to issue certificate)?" 8 78); then
@@ -607,6 +602,7 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
 "3" "Aliyun" \
 "4" "DNSPod.cn" \
 "5" "CloudXNS.com" \
+"6" "GoDaddy" \
 "back" "返回"  3>&1 1>&2 2>&3)
 
     case $APIOPTION in
@@ -618,7 +614,7 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
         export CF_Key="$CF_Key"
         export CF_Email="$CF_Email"
         installacme
-        ~/.acme.sh/acme.sh --issue --dns dns_cf -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ~/.acme.sh/acme.sh --issue --dns dns_cf --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
         ;;
         2)
         while [[ -z $Namesilo_Key ]]; do
@@ -626,7 +622,7 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
         done
         export Namesilo_Key="$Namesilo_Key"
         installacme
-        ~/.acme.sh/acme.sh --issue --dns dns_namesilo --dnssleep 900 -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ~/.acme.sh/acme.sh --issue --dns dns_namesilo --cert-home /etc/certs --dnssleep 900 -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
         ;;
         3)
         while [[ -z $Ali_Key ]] || [[ -z $Ali_Secret ]]; do
@@ -636,7 +632,7 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
         export Ali_Key="$Ali_Key"
         export Ali_Secret="$Ali_Secret"
         installacme
-        ~/.acme.sh/acme.sh --issue --dns dns_ali -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ~/.acme.sh/acme.sh --issue --dns dns_ali --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
         ;;
         4)
         while [[ -z $DP_Id ]] || [[ -z $DP_Key ]]; do
@@ -646,7 +642,7 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
         export DP_Id="$DP_Id"
         export DP_Key="$DP_Key"
         installacme
-        ~/.acme.sh/acme.sh --issue --dns dns_dp -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ~/.acme.sh/acme.sh --issue --dns dns_dp --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
         ;;
         5)
         while [[ -z $CX_Key ]] || [[ -z $CX_Secret ]]; do
@@ -656,7 +652,17 @@ if [[ -f /etc/trojan/trojan.crt ]] && [[ -f /etc/trojan/trojan.key ]] && [[ -n /
         export CX_Key="$CX_Key"
         export CX_Secret="$CX_Secret"
         installacme
-        ~/.acme.sh/acme.sh --issue --dns dns_cx -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ~/.acme.sh/acme.sh --issue --dns dns_cx --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
+        ;;
+        6)
+        while [[ -z $CX_Key ]] || [[ -z $CX_Secret ]]; do
+        CX_Key=$(whiptail --passwordbox --nocancel "https://developer.godaddy.com/keys/，快輸入你的GD_Key" 8 78 --title "GD_Key input" 3>&1 1>&2 2>&3)
+        CX_Secret=$(whiptail --passwordbox --nocancel "https://developer.godaddy.com/keys/，快輸入你的GD_Secret" 8 78 --title "GD_Secret input" 3>&1 1>&2 2>&3)
+        done
+        export GD_Key="$CX_Key"
+        export GD_Secret="$CX_Secret"
+        installacme
+        ~/.acme.sh/acme.sh --issue --dns dns_gd --cert-home /etc/certs -d $domain -k ec-256 --force --log --reloadcmd "systemctl reload trojan || true && nginx -s reload || true"
         ;;
         back) 
 		userinput
@@ -677,36 +683,18 @@ fi
 osdist(){
 set +e
 colorEcho ${INFO} "初始化中(initializing)"
- if cat /etc/*release | grep ^NAME | grep -q CentOS; then
-	dist=centos
-	pack="yum -y -q"
-	yum update -y
-	yum install -y epel-release
-	yum install sudo newt curl e2fsprogs jq redhat-lsb-core lsof neofetch -y -q
- elif cat /etc/*release | grep ^NAME | grep -q Red; then
-	dist=centos
-	pack="yum -y -q"
-	yum update -y
-	yum install -y epel-release
-	yum install sudo newt curl e2fsprogs jq redhat-lsb-core lsof neofetch -y -q
- elif cat /etc/*release | grep ^NAME | grep -q Fedora; then
-	dist=centos
-	pack="yum -y -q"
-	yum update -y
-	yum install -y epel-release
-	yum install sudo newt curl e2fsprogs jq redhat-lsb-core lsof neofetch -y -q
- elif cat /etc/*release | grep ^NAME | grep -q Ubuntu; then
+ if cat /etc/*release | grep ^NAME | grep -q Ubuntu; then
 	dist=ubuntu
 	pack="apt-get -y -q"
 	apt-get update -q
 	export DEBIAN_FRONTEND=noninteractive
-	apt-get install whiptail curl locales lsb-release jq lsof neofetch -y -qq
+	apt-get install whiptail curl locales lsb-release jq lsof -y -q
  elif cat /etc/*release | grep ^NAME | grep -q Debian; then
 	dist=debian
 	pack="apt-get -y -q"
 	apt-get update -q
 	export DEBIAN_FRONTEND=noninteractive
-	apt-get install whiptail curl locales lsb-release jq lsof neofetch -y -qq
+	apt-get install whiptail curl locales lsb-release jq lsof -y -q
  else
 	TERM=ansi whiptail --title "OS not SUPPORTED" --infobox "OS NOT SUPPORTED!" 8 78
 	exit 1;
@@ -715,9 +703,7 @@ colorEcho ${INFO} "初始化中(initializing)"
 ##############Upgrade system optional########
 upgradesystem(){
 	set +e
-	if [[ $dist == centos ]]; then
-		yum upgrade -y
- elif [[ $dist == ubuntu ]]; then
+ if [[ $dist == ubuntu ]]; then
 	export UBUNTU_FRONTEND=noninteractive
 	if [[ $ubuntu18_install == 1 ]]; then
 		cat > '/etc/apt/sources.list' << EOF
@@ -805,7 +791,6 @@ installnginx(){
 if [[ ! -f /etc/apt/sources.list.d/nginx.list ]]; then
 	clear
 	colorEcho ${INFO} "Install Nginx ing"
-	if [[ $dist != centos ]]; then
 	curl -LO --progress-bar https://nginx.org/keys/nginx_signing.key
 	apt-key add nginx_signing.key
 	rm -rf nginx_signing.key
@@ -817,24 +802,6 @@ EOF
 	apt-get purge nginx -qq -y
 	apt-get update -q
 	apt-get install nginx -q -y
- 	else
-	yum group install "Development Tools" -y
-	useradd -r nginx --shell=/usr/sbin/nologin
-	wget http://nginx.org/download/nginx-1.17.9.tar.gz && tar -xvf nginx-1.17.9.tar.gz && rm nginx-1.17.9.tar.gz -f
-	wget https://ftp.pcre.org/pub/pcre/pcre-8.40.tar.gz && tar xzvf pcre-8.40.tar.gz && rm pcre-8.40.tar.gz -f
-	wget https://www.zlib.net/zlib-1.2.11.tar.gz && tar xzvf zlib-1.2.11.tar.gz && rm zlib-1.2.11.tar.gz -f
-	cd nginx-1.17.9
-	./configure --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/run/nginx.pid --lock-path=/var/run/nginx.lock --http-client-body-temp-path=/var/cache/nginx/client_temp --http-proxy-temp-path=/var/cache/nginx/proxy_temp --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp --http-scgi-temp-path=/var/cache/nginx/scgi_temp --user=nginx --group=nginx --with-compat --with-file-aio --with-threads --with-http_realip_module --with-http_secure_link_module --with-http_v2_module --with-stream --with-stream_realip_module --with-http_flv_module --with-http_mp4_module --without-select_module --without-poll_module --with-http_stub_status_module --with-pcre=../pcre-8.40 --with-zlib=../zlib-1.2.11
-	make -j $(nproc --all)
-	make install
-	cd ..
-	rm -rf nginx*
-	rm -rf pcre*
-	rm -rf zlib*
-	mkdir /var/cache/nginx/
-	mkdir /usr/share/nginx/
-	mkdir /usr/share/nginx/html/
- 	fi
 fi
 	cat > '/lib/systemd/system/nginx.service' << EOF
 [Unit]
@@ -919,8 +886,23 @@ openfirewall(){
 	ip6tables -F
 	#block
 	iptables -I INPUT -s 36.110.236.68/16 -j DROP
+	iptables -I INPUT -s 114.114.112.0/21 -j DROP
+	iptables -I INPUT -s 1.2.4.0/24 -j DROP
 	iptables -I OUTPUT -d 36.110.236.68/16 -j DROP
+	iptables -I OUTPUT -d 114.114.112.0/21 -j DROP
+	iptables -I OUTPUT -d 1.2.4.0/24 -j DROP
+	iptables -I OUTPUT -p tcp -m tcp --dport 5222 -j DROP
+	iptables -I OUTPUT -p udp -m udp --dport 5222 -j DROP
+	iptables -I OUTPUT -p tcp -m tcp --dport 1723 -j DROP
+	iptables -I OUTPUT -p udp -m udp --dport 1723 -j DROP
+	iptables -I OUTPUT -p tcp -m tcp --dport 1701 -j DROP
+	iptables -I OUTPUT -p udp -m udp --dport 1701 -j DROP
+	iptables -I OUTPUT -p tcp -m tcp --dport 500 -j DROP
+	iptables -I OUTPUT -p udp -m udp --dport 500 -j DROP
 	#keep connected
+	iptables -A INPUT -p tcp -m tcp --tcp-flags ALL FIN,PSH,URG -j DROP
+	iptables -A INPUT -p tcp -m tcp --tcp-flags SYN,FIN SYN,FIN -j DROP
+	iptables -A INPUT -p tcp -m conntrack --ctstate NEW -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -j DROP
 	iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 	ip6tables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 	#icmp
@@ -935,16 +917,16 @@ openfirewall(){
 	#iptables -m owner --uid-owner trojan -A OUTPUT -d 127.0.0.0/8 --dport 80 -j ACCEPT
 	#iptables -m owner --uid-owner trojan -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 	#tcp
-	iptables -A INPUT -p tcp -m tcp --dport 443 -j ACCEPT
-	iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+	iptables -A INPUT -p tcp -m tcp --dport 443 -j ACCEPT #HTTPS
+	iptables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT #HTTP
 	#udp
 	iptables -A INPUT -p udp -m udp --dport 443 -j ACCEPT
 	iptables -A INPUT -p udp -m udp --dport 80 -j ACCEPT
 	iptables -A OUTPUT -j ACCEPT
 	#iptables -I FORWARD -j DROP
 	#tcp6
-	ip6tables -I INPUT -p tcp -m tcp --dport 443 -j ACCEPT
-	ip6tables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT
+	ip6tables -I INPUT -p tcp -m tcp --dport 443 -j ACCEPT #HTTPSv6
+	ip6tables -A INPUT -p tcp -m tcp --dport 80 -j ACCEPT #HTTPv6
 	#udp6
 	ip6tables -A INPUT -p udp -m udp --dport 443 -j ACCEPT
 	ip6tables -A INPUT -p udp -m udp --dport 80 -j ACCEPT
@@ -981,18 +963,6 @@ openfirewall(){
 	apt-get install iptables-persistent -qq -y > /dev/null
 	iptables-save > /etc/iptables/rules.v4
 	ip6tables-save > /etc/iptables/rules.v6
- elif [[ $dist == centos ]]; then
-	setenforce 0
-	cat > '/etc/selinux/config' << EOF
-SELINUX=disabled
-SELINUXTYPE=targeted
-EOF
-	firewall-cmd --zone=public --add-port=80/tcp --permanent
-	firewall-cmd --zone=public --add-port=443/tcp --permanent
-	firewall-cmd --zone=public --add-port=80/udp --permanent
-	firewall-cmd --zone=public --add-port=443/udp --permanent
-	systemctl stop firewalld
-	systemctl disable firewalld
  else
 	clear
 	TERM=ansi whiptail --title "error can't install iptables-persistent" --infobox "error can't install iptables-persistent" 8 78
@@ -1036,6 +1006,7 @@ fi
 	colorEcho ${INFO} "Enabling TCP-BBR boost"
 	#iii=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2;getline}' | cut -c2-999)
 	cat > '/etc/sysctl.d/99-sysctl.conf' << EOF
+#!!! Do not change these settings unless you know what you are doing !!!
 #net.ipv4.ip_forward = 1
 #net.ipv4.conf.all.forwarding = 1
 #net.ipv4.conf.default.forwarding = 1
@@ -1108,7 +1079,7 @@ net.ipv4.tcp_fack = 0
 ##############################
 net.ipv6.conf.all.accept_redirects = 0
 net.ipv6.conf.default.accept_redirects = 0
-vm.swappiness = 5
+vm.swappiness = 1
 net.ipv4.ip_unprivileged_port_start = 0
 EOF
 	sysctl --system
@@ -1143,15 +1114,11 @@ fi
 systemctl daemon-reload
 	fi
 ###########################################
-	clear
-	colorEcho ${INFO} "安装所有必备软件(Install all necessary Software)"
-if [[ $dist != centos ]]; then
-	apt-get install sudo curl xz-utils wget apt-transport-https gnupg dnsutils lsb-release python-pil unzip resolvconf ntpdate systemd dbus ca-certificates locales iptables software-properties-common cron e2fsprogs less -q -y
-	apt-get install python3-qrcode -q -y
-else
-	$pack install sudo curl wget gnupg unzip bind-utils epel-release chrony systemd dbus xz cron
-	$pack install python3-qrcode
-fi
+clear
+colorEcho ${INFO} "Installing all necessary Software"
+apt-get install sudo git curl xz-utils wget apt-transport-https gnupg dnsutils lsb-release python-pil unzip resolvconf ntpdate systemd dbus ca-certificates locales iptables software-properties-common cron e2fsprogs less haveged neofetch -q -y
+apt-get install python3-qrcode python-dnspython -q -y
+sh -c 'echo "y\n\ny\ny\n" | DEBIAN_FRONTEND=noninteractive apt-get install ntp -q -y'
 clear
 #############################################
 if [[ -f /root/.acme.sh/${domain}_ecc/fullchain.cer ]] && [[ -n /root/.acme.sh/${domain}_ecc/fullchain.cer ]] || [[ $dns_api == 1 ]] || [[ ${othercert} == 1 ]] || [[ ${installstatus} == 1 ]]; then
@@ -1189,11 +1156,14 @@ if [[ $install_docker == 1 ]]; then
   apt-get update
   apt-get install docker-ce docker-ce-cli containerd.io -y
  else
-  yum install -y yum-utils
-  yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-  yum install -y docker-ce docker-ce-cli containerd.io
-  systemctl start docker
+  echo "fail"
   fi
+  cat > '/etc/docker/daemon.json' << EOF
+{
+  "metrics-addr" : "127.0.0.1:9323",
+  "experimental" : true
+}
+EOF
 fi
 ##########Install Speedtest#################
 if [[ ${install_speedtest} == 1 ]]; then
@@ -1205,11 +1175,11 @@ if [[ $tls13only == 1 ]]; then
 cipher_server="TLS_AES_128_GCM_SHA256"
 fi
 ##########Install OPENSSL##############
-if [[ ${install_openssl} == 1 ]] && [[ ${dist} != centos ]]; then
+if [[ ${install_openssl} == 1 ]]; then
 	colorEcho ${INFO} "Install OPENSSL ing"
 apt-get install git build-essential nettle-dev libgmp-dev libssh2-1-dev libc-ares-dev libxml2-dev zlib1g-dev libsqlite3-dev pkg-config libssl-dev autoconf automake autotools-dev autopoint libtool libcppunit-dev -qq -y
-wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz && tar -xvf openssl-1.1.1g.tar.gz && rm -rf openssl-1.1.1g.tar.gz
-cd openssl-1.1.1g && ./config no-ssl2 no-ssl3 && make -j $(nproc --all) && make test && make install
+wget https://www.openssl.org/source/openssl-1.1.1f.tar.gz && tar -xvf openssl-1.1.1f.tar.gz && rm -rf openssl-1.1.1f.tar.gz
+cd openssl-1.1.1f && ./config no-ssl2 no-ssl3 && make -j $(nproc --all) && make test && make install
 cd ..
 rm -rf openssl*
 apt-get purge build-essential -y
@@ -1228,9 +1198,7 @@ if [[ $install_qbt == 1 ]]; then
 	add-apt-repository ppa:qbittorrent-team/qbittorrent-stable -y
 	apt-get install qbittorrent-nox -q -y
  else
-	yum install -y -q epel-release
-	yum update -y -q
-	yum install qbittorrent-nox -y -q
+	echo "fail"
  fi
  #useradd -r qbittorrent --shell=/usr/sbin/nologin
 	cat > '/etc/systemd/system/qbittorrent.service' << EOF
@@ -1269,15 +1237,14 @@ if [[ $install_tracker = 1 ]]; then
 		colorEcho ${INFO} "Install Bittorrent-tracker ing"
 	if [[ $dist = debian ]]; then
 		export DEBIAN_FRONTEND=noninteractive 
-		curl -sL https://deb.nodesource.com/setup_13.x | bash -
+		curl -sL https://deb.nodesource.com/setup_14.x | bash -
 		apt-get install -q -y nodejs
  elif [[ $dist = ubuntu ]]; then
 	export DEBIAN_FRONTEND=noninteractive
-	curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
+	curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
 	apt-get install -q -y nodejs
  else
-	curl -sL https://rpm.nodesource.com/setup_13.x | bash -
-	yum install -y -q nodejs
+	echo "fail"
  fi
  useradd -r bt_tracker --shell=/usr/sbin/nologin
  npm install -g bittorrent-tracker --quiet
@@ -1311,14 +1278,10 @@ clear
 ##############Install FILEBROWSER###############
 if [[ $install_file = 1 ]]; then
 	if [[ ! -f /usr/local/bin/filebrowser ]]; then
-		clear
-		colorEcho ${INFO} "Install Filebrowser ing"
-	if [[ $dist != centos ]]; then
+	clear
+	colorEcho ${INFO} "Install Filebrowser ing"
 	export DEBIAN_FRONTEND=noninteractive
 	curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
- else
-	curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
- fi
 	cat > '/etc/systemd/system/filebrowser.service' << EOF
 [Unit]
 Description=filebrowser browser
@@ -1373,7 +1336,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
 	cat > '/etc/aria2.conf' << EOF
-#Do not change these settings unless you know what you are doing !
+#!!! Do not change these settings unless you know what you are doing !!!
 #Global Settings###
 daemon=true
 async-dns=true
@@ -1440,29 +1403,13 @@ EOF
 	colorEcho ${INFO} "安装aria2(Install aria2 ing)"
 	#usermod -a -G aria2 nginx
 	#useradd -r aria2 --shell=/usr/sbin/nologin
-	if [[ $dist != centos ]]; then
-		apt-get install nettle-dev libgmp-dev libssh2-1-dev libc-ares-dev libxml2-dev zlib1g-dev libsqlite3-dev libssl-dev libuv1-dev -q -y
-		curl -LO --progress-bar https://raw.githubusercontent.com/johnrosen1/trojan-gfw-script/master/binary/aria2c.xz
-		xz --decompress aria2c.xz
-		cp -f aria2c /usr/local/bin/aria2c
-		chmod +x /usr/local/bin/aria2c
-		rm -rf aria2c
-		apt-get autoremove -q -y
-	else
-		yum group install "Development Tools" -y
-		wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz && tar -xvf openssl-1.1.1g.tar.gz && rm -rf openssl-1.1.1g.tar.gz && cd openssl-1.1.1g
-		./config no-ssl2 no-ssl3 && make -j $(nproc --all) && make test && make install
-		cd ..
-		rm -rf openssl*
-		yum install -y -q nettle-dev libgmp-dev libssh2-1-dev libc-ares-dev libxml2-dev zlib1g-dev libsqlite3-dev libssl-dev libuv1-dev
-		wget https://github.com/aria2/aria2/releases/download/release-1.35.0/aria2-1.35.0.tar.xz -q && tar -xvf aria2-1.35.0.tar.xz && rm aria2-1.35.0.tar.xz -f
-		cd aria2-1.35.0
-		./configure --with-openssl --without-gnutls --without-appletls --without-wintls
-		make -j $(nproc --all)
-		make install
-		cd ..
-		rm -rf aria2*
-	fi
+	apt-get install nettle-dev libgmp-dev libssh2-1-dev libc-ares-dev libxml2-dev zlib1g-dev libsqlite3-dev libssl-dev libuv1-dev -q -y
+	curl -LO --progress-bar https://raw.githubusercontent.com/johnrosen1/trojan-gfw-script/master/binary/aria2c.xz
+	xz --decompress aria2c.xz
+	cp -f aria2c /usr/local/bin/aria2c
+	chmod +x /usr/local/bin/aria2c
+	rm -rf aria2c
+	apt-get autoremove -q -y
 	touch /usr/local/bin/aria2.session
 	mkdir /usr/share/nginx/aria2/
 	chmod 755 /usr/share/nginx/aria2/
@@ -1477,7 +1424,7 @@ if [[ ${dnsmasq_install} == 1 ]]; then
 		mkdir /etc/dnscrypt-proxy/
 	fi
 	cat > '/etc/dnscrypt-proxy/blacklist.txt' << EOF
-
+#!!! Do not change these settings unless you know what you are doing !!!
 ###########################
 #        Blacklist        #
 ###########################
@@ -1513,6 +1460,41 @@ if [[ ${dnsmasq_install} == 1 ]]; then
 ####Block Xunlei###
 *.xunlei.com
 ####Block Baidu###
+91.com
+aipage.com
+apollo.auto
+baidu.cn
+baidu.com
+baidubce.com
+baiducontent.com
+baidupcs.com
+baidustatic.com
+baifae.com
+baifubao.com
+bdimg.com
+bdstatic.com
+bdtjrcv.com
+bdydns.cn
+bdydns.net
+chuanke.com
+dlnel.com
+dlnel.org
+duapps.com
+dwz.cn
+hao123.com
+hao123img.com
+hao222.com
+haokan.com
+jomocdn.net
+mipcdn.com
+nuomi.com
+quyaoya.com
+smartapps.cn
+tieba.com
+tiebaimg.com
+xianfae.com
+xiaodutv.com
+###
 *baidu.*
 *.bdimg.com
 *.bdstatic.com
@@ -1522,8 +1504,288 @@ if [[ ${dnsmasq_install} == 1 ]]; then
 *.xiaodutv.com
 *.sina.com
 *huawei.*
+hicloud.com
+vmall.com
+vmallres.com
 *.qq.com
 *.wechat.com
+###Other###
+mi.com
+mifile.cn
+xiaomi.com
+xiaomi.cn
+mi-img.com
+miui.com
+xiaomi.net
+xiaomiyoupin.com
+3304399.net
+4399.com
+4399dmw.com
+4399er.com
+4399youpai.com
+5054399.com
+img4399.com
+58.com
+58.com.cn
+5858.com
+58che.com
+58xueche.com
+anjuke.com
+anjukestatic.com
+chinahr.com
+jxedt.com
+zhuancorp.com
+zhuanspirit.com
+zhuanzhuan.com
+acfun.cn
+aixifan.com
+10086.cn
+139.com
+chinamobile.com
+chinamobileltd.com
+dlercloud.com
+dlercloud.org
+dlercloud.me
+dleris.best
+bgplink.com
+suda.cat
+# Migu
+migucloud.com
+migu.cn
+cmvideo.cn
+miguvideo.com
+# 中移互联
+andfx.cn
+andfx.net
+cmicrwx.cn
+cmpassport.com
+fetion-portal.com
+fetionpic.com
+mmarket.com
+mmarket6.com
+chinapower.csis.org
+189.cn
+chinatelecom.com.cn
+chntel.com
+10010.com
+10010.com.cn
+chinaunicom.com
+chinaunicom.com.cn
+wo.com.cn
+csdn.net
+csdnimg.cn
+hupu.com
+hupucdn.com
+71.am
+iqiyi.com
+iqiyipic.com
+pps.tv
+qiyi.com
+qiyipic.com
+qy.net
+# CDN used by iqiyi
+71edge.com
+include:iqiyi-ads
+3.cn
+300hu.com
+360buy.com
+360buyimg.com
+360top.com
+7fresh.com
+baitiao.com
+blackdragon.com
+caiyu.com
+chinabank.com.cn
+dao123.com
+jcloud-cdn.com
+jcloud-live.com
+jcloud-oss.com
+jcloud.com
+jcloudcache.com
+jcloudcs.com
+jclouddn.com
+jcloudec.com
+jcloudlb.com
+jcloudlive.com
+jcloudlv.com
+jcloudoss.com
+jcloudss.com
+jcloudstatic.com
+jcloudvideo.com
+jclps.com
+jd-app.com
+jd-ex.com
+jd.cn
+jd.co.th
+jd.com
+jd.hk
+jd.id
+jd.ru
+jdcache.com
+jdcloud.com
+jdcloudcs.com
+jdcloud-api.com
+jddapeigou.com
+jddebug.com
+jddglobal.com
+jdjinrong.com
+jdpay.com
+jdpaydns.com
+jdx.com
+jdwl.com
+jingdongjinrong.com
+jingxi.com
+jkcsjd.com
+joybuy.com
+joybuy.es
+linglonglife.com
+mayshijia.com
+minitiao.com
+ocwms.com
+paidaojia.cn
+paipai.com
+prestodb-china.com
+qianxun.com
+toplife.com
+vg.com
+wangyin.com
+wdfok.com
+yhd.com
+yihaodianimg.com
+yiyaojd.com
+yizhitou.com
+jinshuju.net
+jinshujucdn.com
+gifshow.com
+kuaishou.com
+static.yximgs.com
+getlantern.org
+lantern.io
+openvpn.net
+rixcloud.com
+sina.com
+sinaimg.cn
+sina.com.cn
+sinajs.cn
+sina.cn
+sinaapp.com
+sinaedge.com
+sinaimg.com
+sinajs.com
+weibo.com
+weibo.com.cn
+weibo.cn
+weibocdn.com
+go2map.com
+sogo.com
+sogou.com
+sogoucdn.com
+vilavpn.com
+vilavpn.xyz
+vilavpn1.xyz
+vilavpn2.xyz
+vilavpn3.xyz
+vilavpn4.xyz
+vilavpn5.xyz
+vilavpn6.xyz
+vilavpn7.xyz
+kumiao.com
+youku.com
+ykimg.com
+mmstat.com
+soku.com
+cibntv.net
+yfcache.com
+yfcloud.com
+yfp2p.net
+yunfancdn.com
+zhihu.com
+zhimg.com
+v16a.tiktokcdn.com
+p16-tiktokcdn-com.akamaized.net
+log.tiktokv.com
+ib.tiktokv.com
+api-h2.tiktokv.com
+v16m.tiktokcdn.com
+api.tiktokv.com
+v19.tiktokcdn.com
+mon.musical.ly
+api2-16-h2.musical.ly
+api2.musical.ly
+log2.musical.ly
+api2-21-h2.musical.ly
+##Others###
+v2box.cloud
+mielink.cc
+blinkload.zone
+xinjiecloud.co
+justmysocks2.net
+duangcloud.org
+suying666.net
+kaolay.com
+afunvpn.com
+maying.co
+nexitallysafe.com
+amysecure.com
+cylink.pro
+boslife.biz
+surflite.net
+clashcloud.net
+hitun.io
+renzhe.cloud
+conair.me
+stc-server.in
+source-beat1.com
+aaex.uk
+obitibet.com
+ssplive.pw
+cloud-wing.net
+yjc-i.xyz
+net202.top
+928.plus
+paofu.cloud
+cordcloud.org
+ytoo.l
+v2tun.com
+muncloud.dog
+mocloudplus.com
+baicaonetwork.com
+exflux.io
+cttz.xyz
+ssrpass.pw
+pornsshub.com
+catchflying.network
+cloudn.me
+boomsse.com
+yiyo.mobi
+sweetssr.com
+taggood.xyz
+80ss.xyz
+kaolay.com
+mray.club
+guguex.com
+blinkload.to
+npss.cloud
+bighead.group
+bighead.plus
+touhou.network
+fnf.xyz
+gfw.center
+ixuexi.tech
+kcjisu.casa
+36dcup.bar
+qcranev2.com
+qcrane.vip
+aloy.asia
+pcr.cy
+nsl-net.cc
+eos9.vip
+poicloud.blue
+liuhua.in
+mimemi.vip
+yahaha.us
+cylink0501.icu
+nexitally.com
 EOF
 ipv6_true="false"
 block_ipv6="true"
@@ -1535,8 +1797,8 @@ if [[ -n ${myipv6} ]]; then
 	fi
 fi
     cat > '/etc/dnscrypt-proxy/dnscrypt-proxy.toml' << EOF
-#Do not change these settings unless you know what you are doing !
-listen_addresses = ['127.0.0.1:53']
+#!!! Do not change these settings unless you know what you are doing !!!
+listen_addresses = ['127.0.0.1:53','[::1]:53']
 user_name = 'nobody'
 max_clients = 250
 ipv4_servers = true
@@ -1587,8 +1849,8 @@ cache_neg_max_ttl = 600
 #
 #listen_addresses = ['127.0.0.1:3000']
 #path = "/dns-query"
-#cert_file = "/etc/trojan/trojan.crt"
-#cert_key_file = "/etc/trojan/trojan.key"
+#cert_file = "/root/.acme.sh/${domain}_ecc/fullchain.cer"
+#cert_key_file = "/root/.acme.sh/${domain}_ecc/${domain}.key"
 
 [query_log]
 
@@ -1679,8 +1941,7 @@ clear
 if [[ $install_tor = 1 ]]; then
 	clear
 	if [[ ! -f /usr/bin/tor ]]; then
-		colorEcho ${INFO} "Install Tor Relay ing"
-	if [[ $dist != centos ]]; then
+	colorEcho ${INFO} "Install Tor Relay ing"
 	export DEBIAN_FRONTEND=noninteractive
 	touch /etc/apt/sources.list.d/tor.list
 	cat > '/etc/apt/sources.list.d/tor.list' << EOF
@@ -1692,12 +1953,9 @@ EOF
 	apt-get update
 	apt-get install deb.torproject.org-keyring tor tor-arm tor-geoipdb -q -y
 	service tor stop
- else
-	yum install -y -q epel-release
-	yum install -y -q tor 
- fi
 	cat > '/etc/tor/torrc' << EOF
 SocksPort 0
+ControlPort 9051
 RunAsDaemon 1
 ORPort 9001
 #ORPort [$myipv6]:9001
@@ -1711,12 +1969,470 @@ service tor start
 systemctl restart tor@default
 	fi
 fi
+########Install PHP##################
+if [[ $install_php = 1 ]]; then
+	clear
+	if [[ ! -f /usr/sbin/php-fpm7.4 ]]; then
+	colorEcho ${INFO} "Install PHP ing"
+	apt-get purge php* -y
+	wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
+	echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/php.list
+	apt-get update
+	apt-get -y install php7.4
+	systemctl disable --now apache2
+	apt-get install php7.4-fpm -y
+	apt-get install php7.4-common php7.4-mysql php7.4-ldap php7.4-xml php7.4-json php7.4-readline php7.4-xmlrpc php7.4-curl php7.4-gd php7.4-imagick php7.4-cli php7.4-dev php7.4-imap php7.4-mbstring php7.4-opcache php7.4-soap php7.4-zip php7.4-intl php7.4-bcmath -y
+cat > '/etc/php/7.4/fpm/pool.d/www.conf' << EOF
+; Start a new pool named 'www'.
+; the variable $pool can be used in any directive and will be replaced by the
+; pool name ('www' here)
+[www]
+
+; Per pool prefix
+; It only applies on the following directives:
+; - 'access.log'
+; - 'slowlog'
+; - 'listen' (unixsocket)
+; - 'chroot'
+; - 'chdir'
+; - 'php_values'
+; - 'php_admin_values'
+; When not set, the global prefix (or /usr) applies instead.
+; Note: This directive can also be relative to the global prefix.
+; Default Value: none
+;prefix = /path/to/pools/$pool
+
+; Unix user/group of processes
+; Note: The user is mandatory. If the group is not set, the default user's group
+;       will be used.
+user = nginx
+group = nginx
+
+; The address on which to accept FastCGI requests.
+; Valid syntaxes are:
+;   'ip.add.re.ss:port'    - to listen on a TCP socket to a specific IPv4 address on
+;                            a specific port;
+;   '[ip:6:addr:ess]:port' - to listen on a TCP socket to a specific IPv6 address on
+;                            a specific port;
+;   'port'                 - to listen on a TCP socket to all addresses
+;                            (IPv6 and IPv4-mapped) on a specific port;
+;   '/path/to/unix/socket' - to listen on a unix socket.
+; Note: This value is mandatory.
+listen = /run/php/php7.4-fpm.sock
+; listen = 127.0.0.1:9000
+; Set listen(2) backlog.
+; Default Value: 511 (-1 on FreeBSD and OpenBSD)
+;listen.backlog = 511
+
+; Set permissions for unix socket, if one is used. In Linux, read/write
+; permissions must be set in order to allow connections from a web server. Many
+; BSD-derived systems allow connections regardless of permissions. The owner
+; and group can be specified either by name or by their numeric IDs.
+; Default Values: user and group are set as the running user
+;                 mode is set to 0660
+listen.owner = nginx
+listen.group = nginx
+;listen.mode = 0660
+; When POSIX Access Control Lists are supported you can set them using
+; these options, value is a comma separated list of user/group names.
+; When set, listen.owner and listen.group are ignored
+;listen.acl_users =
+;listen.acl_groups =
+
+; List of addresses (IPv4/IPv6) of FastCGI clients which are allowed to connect.
+; Equivalent to the FCGI_WEB_SERVER_ADDRS environment variable in the original
+; PHP FCGI (5.2.2+). Makes sense only with a tcp listening socket. Each address
+; must be separated by a comma. If this value is left blank, connections will be
+; accepted from any ip address.
+; Default Value: any
+; listen.allowed_clients = 127.0.0.1
+
+; Specify the nice(2) priority to apply to the pool processes (only if set)
+; The value can vary from -19 (highest priority) to 20 (lower priority)
+; Note: - It will only work if the FPM master process is launched as root
+;       - The pool processes will inherit the master process priority
+;         unless it specified otherwise
+; Default Value: no set
+; process.priority = -19
+
+; Set the process dumpable flag (PR_SET_DUMPABLE prctl) even if the process user
+; or group is differrent than the master process user. It allows to create process
+; core dump and ptrace the process for the pool user.
+; Default Value: no
+; process.dumpable = yes
+
+; Choose how the process manager will control the number of child processes.
+; Possible Values:
+;   static  - a fixed number (pm.max_children) of child processes;
+;   dynamic - the number of child processes are set dynamically based on the
+;             following directives. With this process management, there will be
+;             always at least 1 children.
+;             pm.max_children      - the maximum number of children that can
+;                                    be alive at the same time.
+;             pm.start_servers     - the number of children created on startup.
+;             pm.min_spare_servers - the minimum number of children in 'idle'
+;                                    state (waiting to process). If the number
+;                                    of 'idle' processes is less than this
+;                                    number then some children will be created.
+;             pm.max_spare_servers - the maximum number of children in 'idle'
+;                                    state (waiting to process). If the number
+;                                    of 'idle' processes is greater than this
+;                                    number then some children will be killed.
+;  ondemand - no children are created at startup. Children will be forked when
+;             new requests will connect. The following parameter are used:
+;             pm.max_children           - the maximum number of children that
+;                                         can be alive at the same time.
+;             pm.process_idle_timeout   - The number of seconds after which
+;                                         an idle process will be killed.
+; Note: This value is mandatory.
+pm = dynamic
+
+; The number of child processes to be created when pm is set to 'static' and the
+; maximum number of child processes when pm is set to 'dynamic' or 'ondemand'.
+; This value sets the limit on the number of simultaneous requests that will be
+; served. Equivalent to the ApacheMaxClients directive with mpm_prefork.
+; Equivalent to the PHP_FCGI_CHILDREN environment variable in the original PHP
+; CGI. The below defaults are based on a server without much resources. Don't
+; forget to tweak pm.* to fit your needs.
+; Note: Used when pm is set to 'static', 'dynamic' or 'ondemand'
+; Note: This value is mandatory.
+pm.max_children = 5
+
+; The number of child processes created on startup.
+; Note: Used only when pm is set to 'dynamic'
+; Default Value: (min_spare_servers + max_spare_servers) / 2
+pm.start_servers = $(($(nproc --all)*4))
+
+; The desired minimum number of idle server processes.
+; Note: Used only when pm is set to 'dynamic'
+; Note: Mandatory when pm is set to 'dynamic'
+pm.min_spare_servers = $(($(nproc --all)*2))
+
+; The desired maximum number of idle server processes.
+; Note: Used only when pm is set to 'dynamic'
+; Note: Mandatory when pm is set to 'dynamic'
+pm.max_spare_servers = $(($(nproc --all)*4))
+
+; The number of seconds after which an idle process will be killed.
+; Note: Used only when pm is set to 'ondemand'
+; Default Value: 10s
+;pm.process_idle_timeout = 10s;
+
+; The number of requests each child process should execute before respawning.
+; This can be useful to work around memory leaks in 3rd party libraries. For
+; endless request processing specify '0'. Equivalent to PHP_FCGI_MAX_REQUESTS.
+; Default Value: 0
+;pm.max_requests = 500
+
+; The URI to view the FPM status page. If this value is not set, no URI will be
+; recognized as a status page. It shows the following informations:
+;   pool                 - the name of the pool;
+;   process manager      - static, dynamic or ondemand;
+;   start time           - the date and time FPM has started;
+;   start since          - number of seconds since FPM has started;
+;   accepted conn        - the number of request accepted by the pool;
+;   listen queue         - the number of request in the queue of pending
+;                          connections (see backlog in listen(2));
+;   max listen queue     - the maximum number of requests in the queue
+;                          of pending connections since FPM has started;
+;   listen queue len     - the size of the socket queue of pending connections;
+;   idle processes       - the number of idle processes;
+;   active processes     - the number of active processes;
+;   total processes      - the number of idle + active processes;
+;   max active processes - the maximum number of active processes since FPM
+;                          has started;
+;   max children reached - number of times, the process limit has been reached,
+;                          when pm tries to start more children (works only for
+;                          pm 'dynamic' and 'ondemand');
+; Value are updated in real time.
+; Example output:
+;   pool:                 www
+;   process manager:      static
+;   start time:           01/Jul/2011:17:53:49 +0200
+;   start since:          62636
+;   accepted conn:        190460
+;   listen queue:         0
+;   max listen queue:     1
+;   listen queue len:     42
+;   idle processes:       4
+;   active processes:     11
+;   total processes:      15
+;   max active processes: 12
+;   max children reached: 0
+;
+; By default the status page output is formatted as text/plain. Passing either
+; 'html', 'xml' or 'json' in the query string will return the corresponding
+; output syntax. Example:
+;   http://www.foo.bar/status
+;   http://www.foo.bar/status?json
+;   http://www.foo.bar/status?html
+;   http://www.foo.bar/status?xml
+;
+; By default the status page only outputs short status. Passing 'full' in the
+; query string will also return status for each pool process.
+; Example:
+;   http://www.foo.bar/status?full
+;   http://www.foo.bar/status?json&full
+;   http://www.foo.bar/status?html&full
+;   http://www.foo.bar/status?xml&full
+; The Full status returns for each process:
+;   pid                  - the PID of the process;
+;   state                - the state of the process (Idle, Running, ...);
+;   start time           - the date and time the process has started;
+;   start since          - the number of seconds since the process has started;
+;   requests             - the number of requests the process has served;
+;   request duration     - the duration in µs of the requests;
+;   request method       - the request method (GET, POST, ...);
+;   request URI          - the request URI with the query string;
+;   content length       - the content length of the request (only with POST);
+;   user                 - the user (PHP_AUTH_USER) (or '-' if not set);
+;   script               - the main script called (or '-' if not set);
+;   last request cpu     - the %cpu the last request consumed
+;                          it's always 0 if the process is not in Idle state
+;                          because CPU calculation is done when the request
+;                          processing has terminated;
+;   last request memory  - the max amount of memory the last request consumed
+;                          it's always 0 if the process is not in Idle state
+;                          because memory calculation is done when the request
+;                          processing has terminated;
+; If the process is in Idle state, then informations are related to the
+; last request the process has served. Otherwise informations are related to
+; the current request being served.
+; Example output:
+;   ************************
+;   pid:                  31330
+;   state:                Running
+;   start time:           01/Jul/2011:17:53:49 +0200
+;   start since:          63087
+;   requests:             12808
+;   request duration:     1250261
+;   request method:       GET
+;   request URI:          /test_mem.php?N=10000
+;   content length:       0
+;   user:                 -
+;   script:               /home/fat/web/docs/php/test_mem.php
+;   last request cpu:     0.00
+;   last request memory:  0
+;
+; Note: There is a real-time FPM status monitoring sample web page available
+;       It's available in: /usr/share/php/7.4/fpm/status.html
+;
+; Note: The value must start with a leading slash (/). The value can be
+;       anything, but it may not be a good idea to use the .php extension or it
+;       may conflict with a real PHP file.
+; Default Value: not set
+pm.status_path = /status
+
+; The ping URI to call the monitoring page of FPM. If this value is not set, no
+; URI will be recognized as a ping page. This could be used to test from outside
+; that FPM is alive and responding, or to
+; - create a graph of FPM availability (rrd or such);
+; - remove a server from a group if it is not responding (load balancing);
+; - trigger alerts for the operating team (24/7).
+; Note: The value must start with a leading slash (/). The value can be
+;       anything, but it may not be a good idea to use the .php extension or it
+;       may conflict with a real PHP file.
+; Default Value: not set
+;ping.path = /ping
+
+; This directive may be used to customize the response of a ping request. The
+; response is formatted as text/plain with a 200 response code.
+; Default Value: pong
+;ping.response = pong
+
+; The access log file
+; Default: not set
+;access.log = log/$pool.access.log
+
+; The access log format.
+; The following syntax is allowed
+;  %%: the '%' character
+;  %C: %CPU used by the request
+;      it can accept the following format:
+;      - %{user}C for user CPU only
+;      - %{system}C for system CPU only
+;      - %{total}C  for user + system CPU (default)
+;  %d: time taken to serve the request
+;      it can accept the following format:
+;      - %{seconds}d (default)
+;      - %{miliseconds}d
+;      - %{mili}d
+;      - %{microseconds}d
+;      - %{micro}d
+;  %e: an environment variable (same as $_ENV or $_SERVER)
+;      it must be associated with embraces to specify the name of the env
+;      variable. Some exemples:
+;      - server specifics like: %{REQUEST_METHOD}e or %{SERVER_PROTOCOL}e
+;      - HTTP headers like: %{HTTP_HOST}e or %{HTTP_USER_AGENT}e
+;  %f: script filename
+;  %l: content-length of the request (for POST request only)
+;  %m: request method
+;  %M: peak of memory allocated by PHP
+;      it can accept the following format:
+;      - %{bytes}M (default)
+;      - %{kilobytes}M
+;      - %{kilo}M
+;      - %{megabytes}M
+;      - %{mega}M
+;  %n: pool name
+;  %o: output header
+;      it must be associated with embraces to specify the name of the header:
+;      - %{Content-Type}o
+;      - %{X-Powered-By}o
+;      - %{Transfert-Encoding}o
+;      - ....
+;  %p: PID of the child that serviced the request
+;  %P: PID of the parent of the child that serviced the request
+;  %q: the query string
+;  %Q: the '?' character if query string exists
+;  %r: the request URI (without the query string, see %q and %Q)
+;  %R: remote IP address
+;  %s: status (response code)
+;  %t: server time the request was received
+;      it can accept a strftime(3) format:
+;      %d/%b/%Y:%H:%M:%S %z (default)
+;      The strftime(3) format must be encapsuled in a %{<strftime_format>}t tag
+;      e.g. for a ISO8601 formatted timestring, use: %{%Y-%m-%dT%H:%M:%S%z}t
+;  %T: time the log has been written (the request has finished)
+;      it can accept a strftime(3) format:
+;      %d/%b/%Y:%H:%M:%S %z (default)
+;      The strftime(3) format must be encapsuled in a %{<strftime_format>}t tag
+;      e.g. for a ISO8601 formatted timestring, use: %{%Y-%m-%dT%H:%M:%S%z}t
+;  %u: remote user
+;
+; Default: "%R - %u %t \"%m %r\" %s"
+;access.format = "%R - %u %t \"%m %r%Q%q\" %s %f %{mili}d %{kilo}M %C%%"
+
+; The log file for slow requests
+; Default Value: not set
+; Note: slowlog is mandatory if request_slowlog_timeout is set
+;slowlog = log/$pool.log.slow
+
+; The timeout for serving a single request after which a PHP backtrace will be
+; dumped to the 'slowlog' file. A value of '0s' means 'off'.
+; Available units: s(econds)(default), m(inutes), h(ours), or d(ays)
+; Default Value: 0
+;request_slowlog_timeout = 0
+
+; Depth of slow log stack trace.
+; Default Value: 20
+;request_slowlog_trace_depth = 20
+
+; The timeout for serving a single request after which the worker process will
+; be killed. This option should be used when the 'max_execution_time' ini option
+; does not stop script execution for some reason. A value of '0' means 'off'.
+; Available units: s(econds)(default), m(inutes), h(ours), or d(ays)
+; Default Value: 0
+;request_terminate_timeout = 0
+
+; The timeout set by 'request_terminate_timeout' ini option is not engaged after
+; application calls 'fastcgi_finish_request' or when application has finished and
+; shutdown functions are being called (registered via register_shutdown_function).
+; This option will enable timeout limit to be applied unconditionally
+; even in such cases.
+; Default Value: no
+;request_terminate_timeout_track_finished = no
+
+; Set open file descriptor rlimit.
+; Default Value: system defined value
+;rlimit_files = 1024
+
+; Set max core size rlimit.
+; Possible Values: 'unlimited' or an integer greater or equal to 0
+; Default Value: system defined value
+;rlimit_core = 0
+
+; Chroot to this directory at the start. This value must be defined as an
+; absolute path. When this value is not set, chroot is not used.
+; Note: you can prefix with '$prefix' to chroot to the pool prefix or one
+; of its subdirectories. If the pool prefix is not set, the global prefix
+; will be used instead.
+; Note: chrooting is a great security feature and should be used whenever
+;       possible. However, all PHP paths will be relative to the chroot
+;       (error_log, sessions.save_path, ...).
+; Default Value: not set
+;chroot =
+
+; Chdir to this directory at the start.
+; Note: relative path can be used.
+; Default Value: current directory or / when chroot
+;chdir = /var/www
+
+; Redirect worker stdout and stderr into main error log. If not set, stdout and
+; stderr will be redirected to /dev/null according to FastCGI specs.
+; Note: on highloaded environement, this can cause some delay in the page
+; process time (several ms).
+; Default Value: no
+catch_workers_output = yes
+
+; Decorate worker output with prefix and suffix containing information about
+; the child that writes to the log and if stdout or stderr is used as well as
+; log level and time. This options is used only if catch_workers_output is yes.
+; Settings to "no" will output data as written to the stdout or stderr.
+; Default value: yes
+;decorate_workers_output = no
+
+; Clear environment in FPM workers
+; Prevents arbitrary environment variables from reaching FPM worker processes
+; by clearing the environment in workers before env vars specified in this
+; pool configuration are added.
+; Setting to "no" will make all environment variables available to PHP code
+; via getenv(), $_ENV and $_SERVER.
+; Default Value: yes
+;clear_env = no
+
+; Limits the extensions of the main script FPM will allow to parse. This can
+; prevent configuration mistakes on the web server side. You should only limit
+; FPM to .php extensions to prevent malicious users to use other extensions to
+; execute php code.
+; Note: set an empty value to allow all extensions.
+; Default Value: .php
+;security.limit_extensions = .php .php3 .php4 .php5 .php7
+
+; Pass environment variables like LD_LIBRARY_PATH. All $VARIABLEs are taken from
+; the current environment.
+; Default Value: clean env
+;env[HOSTNAME] = $HOSTNAME
+;env[PATH] = /usr/local/bin:/usr/bin:/bin
+;env[TMP] = /tmp
+;env[TMPDIR] = /tmp
+;env[TEMP] = /tmp
+
+; Additional php.ini defines, specific to this pool of workers. These settings
+; overwrite the values previously defined in the php.ini. The directives are the
+; same as the PHP SAPI:
+;   php_value/php_flag             - you can set classic ini defines which can
+;                                    be overwritten from PHP call 'ini_set'.
+;   php_admin_value/php_admin_flag - these directives won't be overwritten by
+;                                     PHP call 'ini_set'
+; For php_*flag, valid values are on, off, 1, 0, true, false, yes or no.
+
+; Defining 'extension' will load the corresponding shared extension from
+; extension_dir. Defining 'disable_functions' or 'disable_classes' will not
+; overwrite previously defined php.ini values, but will append the new value
+; instead.
+
+; Note: path INI options can be relative and will be expanded with the prefix
+; (pool, global or /usr)
+
+; Default Value: nothing is defined by default except the values in php.ini and
+;                specified at startup with the -d argument
+;php_admin_value[sendmail_path] = /usr/sbin/sendmail -t -i -f www@my.domain.com
+;php_flag[display_errors] = off
+;php_admin_value[error_log] = /var/log/fpm-php.www.log
+;php_admin_flag[log_errors] = on
+;php_admin_value[memory_limit] = 32M
+EOF
+systemctl restart php7.4-fpm
+	fi
+fi
 ########Install Netdata################
-if [[ $install_netdata = 1 ]]; then
-	if [[ ! -f /usr/sbin/netdata ]]; then
+if [[ $install_netdata == 1 ]]; then
+	if [[ ! -f /opt/netdata/usr/sbin/netdata ]]; then
 		clear
 		colorEcho ${INFO} "Install netdata ing"
-		bash <(curl -Ss https://my-netdata.io/kickstart-static64.sh) --dont-wait
+		bash <(curl -Ss https://my-netdata.io/kickstart-static64.sh) --dont-wait --no-updates
+		touch /opt/netdata/etc/netdata/python.d/dns_query_time.conf
 		cat > '/opt/netdata/etc/netdata/python.d/nginx.conf' << EOF
 localhost:
 
@@ -1729,6 +2445,40 @@ nginx_log:
   name  : 'nginx_log'
   path  : '/var/log/nginx/access.log'
 EOF
+		cat > '/opt/netdata/etc/netdata/go.d/docker_engine.conf' << EOF
+jobs:
+  - name: local
+    url : http://127.0.0.1:9323/metrics
+EOF
+		cat > '/opt/netdata/etc/netdata/go.d/x509check.conf' << EOF
+update_every : 60
+
+jobs:
+  - name   : ${domain}_${password1}
+    source : https://${domain}:443
+    check_revocation_status: yes
+
+  - name   : ${domain}_${password1}_file_cert
+    source : file:///root/.acme.sh/${domain}_ecc/fullchain.cer
+EOF
+if [[ ${install_php} == 1 ]]; then
+cat > '/opt/netdata/etc/netdata/python.d/phpfpm.conf' << EOF
+local:
+  url     : 'http://127.0.0.1:81/status?full&json'
+EOF
+fi
+if [[ ${install_tor} == 1 ]]; then
+apt-get install python-pip -y
+pip install stem
+cat > '/opt/netdata/etc/netdata/python.d/tor.conf' << EOF
+update_every : 1
+priority     : 60001
+
+local_tcp:
+ name: 'local'
+ control_port: 9051
+EOF
+fi
 	fi
 fi
 clear
@@ -1793,8 +2543,8 @@ if [[ ${othercert} != 1 ]]; then
     ],
     "log_level": 1,
     "ssl": {
-        "cert": "/root/.acme.sh/${domain}_ecc/fullchain.cer",
-        "key": "/root/.acme.sh/${domain}_ecc/${domain}.key",
+        "cert": "/etc/certs/${domain}_ecc/fullchain.cer",
+        "key": "/etc/certs/${domain}_ecc/${domain}.key",
         "key_password": "",
         "cipher": "$cipher_server",
         "cipher_tls13": "TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384",
@@ -2000,11 +2750,90 @@ fi
 fi
 	clear
 	timedatectl set-timezone Asia/Hong_Kong
-	timedatectl set-ntp on
-	if [[ $dist != centos ]]; then
-		ntpdate -qu 1.hk.pool.ntp.org > /dev/null
-	fi
+	timedatectl set-ntp off
+	ntpdate -qu 1.hk.pool.ntp.org > /dev/null
 	clear
+}
+##########Install Mariadb#############
+install_mariadb(){
+  curl -LsS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+  apt-get install mariadb-server -y
+  apt-get install python-mysqldb -y
+  apt-get -y install expect
+
+  SECURE_MYSQL=$(expect -c "
+
+set timeout 10
+spawn mysql_secure_installation
+
+expect \"Enter current password for root (enter for none):\"
+send \"\r\"
+
+expect \"Switch to unix_socket authentication\"
+send \"n\r\"
+
+expect \"Change the root password?\"
+send \"n\r\"
+
+expect \"Remove anonymous users?\"
+send \"y\r\"
+
+expect \"Disallow root login remotely?\"
+send \"y\r\"
+
+expect \"Remove test database and access to it?\"
+send \"y\r\"
+
+expect \"Reload privilege tables now?\"
+send \"y\r\"
+
+expect eof
+")
+
+echo "$SECURE_MYSQL"
+
+apt-get -y purge expect
+
+    cat > '/etc/mysql/my.cnf' << EOF
+# MariaDB-specific config file.
+# Read by /etc/mysql/my.cnf
+
+[client]
+# Default is Latin1, if you need UTF-8 set this (also in server section)
+default-character-set = utf8 
+
+[mysqld]
+#
+# * Character sets
+# 
+# Default is Latin1, if you need UTF-8 set all this (also in client section)
+#
+character-set-server  = utf8 
+collation-server      = utf8_general_ci 
+character_set_server   = utf8 
+collation_server       = utf8_general_ci 
+# Import all .cnf files from configuration directory
+!includedir /etc/mysql/mariadb.conf.d/
+bind-address=127.0.0.1
+
+[mariadb]
+
+userstat = 1
+EOF
+
+mysql -u root -e "create user 'netdata'@'localhost';"
+mysql -u root -e "grant usage on *.* to 'netdata'@'localhost';"
+mysql -u root -e "flush privileges;"
+
+    cat > '/opt/netdata/etc/netdata/python.d/mysql.conf' << EOF
+update_every : 10
+priority     : 90100
+
+local:
+  user     : 'netdata'
+  update_every : 1
+EOF
+
 }
 ########Nginx config##############
 nginxtrojan(){
@@ -2017,11 +2846,12 @@ rm -rf /etc/nginx/conf.d/*
 touch /etc/nginx/conf.d/default.conf
 if [[ $install_trojan == 1 ]]; then
 	cat > '/etc/nginx/conf.d/default.conf' << EOF
-#Do not change these settings unless you know what you are doing !
+#!!! Do not change these settings unless you know what you are doing !!!
 server {
 	listen 127.0.0.1:80;
 	listen 127.0.0.1:82 http2;
 	server_name $domain;
+	root /usr/share/nginx/html/;
 	resolver 127.0.0.1;
 	resolver_timeout 10s;
 	#if (\$http_user_agent ~* (wget|curl) ) { return 403; }
@@ -2034,13 +2864,21 @@ server {
 	#add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://ssl.google-analytics.com https://assets.zendesk.com https://connect.facebook.net; img-src 'self' https://ssl.google-analytics.com https://s-static.ak.facebook.com https://assets.zendesk.com; style-src 'self' https://fonts.googleapis.com https://assets.zendesk.com; font-src 'self' https://themes.googleusercontent.com; frame-src https://assets.zendesk.com https://www.facebook.com https://s-static.ak.facebook.com https://tautt.zendesk.com; object-src 'none'";
 	#add_header Feature-Policy "geolocation none;midi none;notifications none;push none;sync-xhr none;microphone none;camera none;magnetometer none;gyroscope none;speaker self;vibrate none;fullscreen self;payment none;";
 	location / {
-		root /usr/share/nginx/html/;
 			index index.html;
 		}
+    location ~ \.php\$ {
+        fastcgi_split_path_info ^(.+\.php)(/.+)\$;
+        fastcgi_param SCRIPT_FILENAME \$request_filename;
+        #fastcgi_index index.php;
+        include fastcgi_params;
+        #fastcgi_pass 127.0.0.1:9000;
+        fastcgi_pass   unix:/run/php/php7.4-fpm.sock;
+        }
+
 EOF
 	else
 	cat > '/etc/nginx/conf.d/default.conf' << EOF
-#Do not change these settings unless you know what you are doing !
+#!!! Do not change these settings unless you know what you are doing !!!
 server {
 	listen 443 ssl http2;
 	listen [::]:443 ssl http2;
@@ -2058,6 +2896,8 @@ server {
 	ssl_stapling_verify on;
 	#ssl_dhparam /etc/nginx/nginx.pem;
 
+	root /usr/share/nginx/html;
+
 	resolver 127.0.0.1;
 	resolver_timeout 10s;
 	server_name           $domain;
@@ -2073,13 +2913,20 @@ server {
 	#if (\$http_user_agent = "") { return 403; }
 	if (\$host != "$domain") { return 404; }
 	location / {
-		root /usr/share/nginx/html;
 		index index.html;
 	}
+    location ~ \.php\$ {
+        fastcgi_split_path_info ^(.+\.php)(/.+)\$;
+        fastcgi_param SCRIPT_FILENAME \$request_filename;
+        #fastcgi_index index.php;
+        include fastcgi_params;
+        #fastcgi_pass 127.0.0.1:9000;
+        fastcgi_pass   unix:/run/php/php7.4-fpm.sock;
+        }
 EOF
 fi
 if [[ $dnsmasq_install == 1 ]]; then
-echo "    #location /dns {" >> /etc/nginx/conf.d/default.conf
+echo "    #location /dns-query {" >> /etc/nginx/conf.d/default.conf
 echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        #proxy_redirect off;" >> /etc/nginx/conf.d/default.conf
 echo "        #proxy_pass https://127.0.0.1:3000/dns-query;" >> /etc/nginx/conf.d/default.conf
@@ -2118,6 +2965,7 @@ echo "        }" >> /etc/nginx/conf.d/default.conf
 fi
 if [[ $install_qbt == 1 ]]; then
 echo "    location $qbtpath {" >> /etc/nginx/conf.d/default.conf
+echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_pass              http://127.0.0.1:8080/;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header        X-Forwarded-Host        \$http_host;" >> /etc/nginx/conf.d/default.conf
 echo "        error_page 502 = @errpage;" >> /etc/nginx/conf.d/default.conf
@@ -2125,6 +2973,7 @@ echo "        }" >> /etc/nginx/conf.d/default.conf
 fi
 if [[ $install_file == 1 ]]; then
 echo "    location $filepath {" >> /etc/nginx/conf.d/default.conf
+echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_pass http://127.0.0.1:8081/;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header Host \$http_host;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header X-Real-IP \$remote_addr;" >> /etc/nginx/conf.d/default.conf
@@ -2135,6 +2984,7 @@ echo "        }" >> /etc/nginx/conf.d/default.conf
 fi
 if [[ $install_tracker == 1 ]]; then
 echo "    location $trackerpath {" >> /etc/nginx/conf.d/default.conf
+echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_pass http://127.0.0.1:8000/announce;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header Upgrade \$http_upgrade;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header Connection "upgrade";" >> /etc/nginx/conf.d/default.conf
@@ -2144,6 +2994,7 @@ echo "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> 
 echo "        error_page 502 = @errpage;" >> /etc/nginx/conf.d/default.conf
 echo "        }" >> /etc/nginx/conf.d/default.conf
 echo "    location $trackerstatuspath {" >> /etc/nginx/conf.d/default.conf
+echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_pass http://127.0.0.1:8000/stats;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header Host \$http_host;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header X-Real-IP \$remote_addr;" >> /etc/nginx/conf.d/default.conf
@@ -2153,6 +3004,7 @@ echo "        }" >> /etc/nginx/conf.d/default.conf
 fi
 if [[ $install_netdata == 1 ]]; then
 echo "    location ~ $netdatapath(?<ndpath>.*) {" >> /etc/nginx/conf.d/default.conf
+echo "        #access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_redirect off;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header Host \$host;" >> /etc/nginx/conf.d/default.conf
 echo "        proxy_set_header X-Forwarded-Host \$host;" >> /etc/nginx/conf.d/default.conf
@@ -2191,6 +3043,15 @@ echo "    listen 127.0.0.1:81;" >> /etc/nginx/conf.d/default.conf
 echo "    location /stub_status {" >> /etc/nginx/conf.d/default.conf
 echo "    access_log off;" >> /etc/nginx/conf.d/default.conf
 echo "    stub_status; #For Netdata only !" >> /etc/nginx/conf.d/default.conf
+echo "    }" >> /etc/nginx/conf.d/default.conf
+echo "    location ~ ^/(status|ping)\$ {" >> /etc/nginx/conf.d/default.conf
+echo "    access_log off;" >> /etc/nginx/conf.d/default.conf
+echo "    allow 127.0.0.1;" >> /etc/nginx/conf.d/default.conf
+echo "    fastcgi_param SCRIPT_FILENAME \$request_filename;" >> /etc/nginx/conf.d/default.conf
+echo "    fastcgi_index index.php;" >> /etc/nginx/conf.d/default.conf
+echo "    include fastcgi_params;" >> /etc/nginx/conf.d/default.conf
+echo "    #fastcgi_pass 127.0.0.1:9000;" >> /etc/nginx/conf.d/default.conf
+echo "    fastcgi_pass   unix:/run/php/php7.4-fpm.sock;" >> /etc/nginx/conf.d/default.conf
 echo "    }" >> /etc/nginx/conf.d/default.conf
 echo "}" >> /etc/nginx/conf.d/default.conf
 echo "upstream netdata {" >> /etc/nginx/conf.d/default.conf
@@ -2231,6 +3092,13 @@ checkupdate(){
 	if [[ -f /usr/local/bin/trojan ]]; then
 		bash -c "$(curl -fsSL https://raw.githubusercontent.com/trojan-gfw/trojan-quickstart/master/trojan-quickstart.sh)"
 	fi
+	if [[ -f /opt/netdata/usr/sbin/netdata ]]; then
+		bash <(curl -Ss https://my-netdata.io/kickstart-static64.sh) --dont-wait --no-updates
+		wget -O /opt/netdata/etc/netdata/netdata.conf http://127.0.0.1:19999/netdata.conf
+		sed -i 's/# bind to = \*/bind to = 127.0.0.1/g' /opt/netdata/etc/netdata/netdata.conf
+		systemctl restart netdata
+  	fi
+  	echo "Done !"
 }
 ###########Trojan share link########
 sharelink(){
@@ -2526,7 +3394,7 @@ footer a:link {
                             </ol>
                         </li>
                         <li>
-                            <h3>Trojan-GFW QR codes (Centos等不支援python3-prcode的系统会404!)</h3>
+                            <h3>Trojan-GFW QR codes (不支援python3-prcode的系统会404!)</h3>
                             <ol>
                                 <li><a href="$password1.png" target="_blank">QR code 1</a></li>
                                 <li><a href="$password2.png" target="_blank">QR code 2</a></li>
@@ -2648,6 +3516,16 @@ footer a:link {
                         <li><a href="https://github.com/librespeed/speedtest" target="_blank">https://github.com/librespeed/speedtest</a></li>
                         <li><a href="https://github.com/librespeed/speedtest/blob/docker/doc.md" target="_blank">https://github.com/librespeed/speedtest/blob/docker/doc.md</a></li>
                     </ol>
+                    <br>
+
+                    <h2>MariaDB</h2>
+                    <h4>默认安装: ✅</h4>
+                    <p>Your MariaDb Information</p>
+                    <p>No default root password, remote access has been disabled for security!</p>
+                    <p>无默认root密码,为了安全起见,外网访问已禁用,请直接使用以下命令访问数据库！</p>
+                    <p>mysql -u root</p>
+                    <p>如果需要外网访问,请自行注释掉/etc/mysql/my.cnf中的bind-address选项并重启mariadb！</p>
+                    <p>Please edit /etc/mysql/my.cnf and restart mariadb if you need remote access !</p>
                     <br>
                     
                     <h2>How to change the default config </h2>
@@ -2859,16 +3737,17 @@ advancedMenu() {
 		userinput
 		systeminfo
 		installdependency
+		if [[ $install_mariadb == 1 ]]; then
+			install_mariadb
+		fi
 		nginxtrojan
 		start
 		sharelink
 		rm results
 		prasejson
 		autoupdate
-		if [[ $dist != centos ]]; then
-			apt-get purge dnsutils python-pil socat python3-qrcode -q -y
-			apt-get autoremove -y
-		fi
+		apt-get purge dnsutils python-pil python3-qrcode -q -y
+		apt-get autoremove -y
 		if [[ $dnsmasq_install -eq 1 ]]; then
 			if [[ $dist = ubuntu ]]; then
 	 			systemctl stop systemd-resolved
@@ -2882,6 +3761,7 @@ advancedMenu() {
 		echo "nameserver 127.0.0.1" > '/etc/resolv.conf'
 		systemctl start dnscrypt-proxy
 		iptables -t nat -I OUTPUT ! -d 127.0.0.1/32 -p udp -m udp --dport 53 -j DNAT --to 127.0.0.1:53
+		ip6tables -t nat -I OUTPUT ! -d ::1 -p udp -m udp --dport 53 -j DNAT --to [::1]:53
 		iptables-save > /etc/iptables/rules.v4
 		fi
 		if [[ $password1 == "" ]]; then
@@ -2890,6 +3770,9 @@ advancedMenu() {
 		if [[ $install_netdata = 1 ]]; then
 		wget -O /opt/netdata/etc/netdata/netdata.conf http://127.0.0.1:19999/netdata.conf
 		sed -i 's/# bind to = \*/bind to = 127.0.0.1/g' /opt/netdata/etc/netdata/netdata.conf
+		cd /opt/netdata/bin
+		sleep 1
+		bash netdata-claim.sh -token=llFcKa-42N035f4WxUYZ5VhSnKLBYQR9Se6HIrtXysmjkMBHiLCuiHfb9aEJmXk0hy6V_pZyKMEz_QN30o2s7_OsS7sKEhhUTQGfjW0KAG5ahWhbnCvX8b_PW_U-256otbL5CkM -rooms=38e38830-7b2c-4c34-a4c7-54cacbe6dbb9 -url=https://app.netdata.cloud
 		colorEcho ${INFO} "Restart netdata ing"
 		systemctl restart netdata
 		cd
@@ -2898,6 +3781,7 @@ advancedMenu() {
 		clear
 		cat > '/etc/profile.d/mymotd.sh' << EOF
 #!/bin/bash
+#!!! Do not change these settings unless you know what you are doing !!!
 neofetch
 echo -e "-------------------------------IP Information----------------------------"
 echo -e "ip:\t\t"\$(jq -r '.ip' "/root/.trojan/ip.json")
@@ -2921,7 +3805,7 @@ echo -e "timezone:\t"\$(jq -r '.timezone' "/root/.trojan/ipv6.json")
 fi
 echo -e "-------------------------------Service Status----------------------------"
   if [[ -f /usr/local/bin/trojan ]]; then
-echo -e "Trojan:\t\t"\$(systemctl is-active trojan)
+echo -e "Trojan-GFW:\t\t"\$(systemctl is-active trojan)
   fi
   if [[ -f /usr/sbin/nginx ]]; then
 echo -e "Nginx:\t\t"\$(systemctl is-active nginx)
@@ -2947,8 +3831,17 @@ echo -e "Netdata:\t"\$(systemctl is-active netdata)
   if [[ -f /usr/bin/dockerd ]]; then
 echo -e "Docker:\t\t"\$(systemctl is-active docker)
   fi
+  if [[ -f /usr/sbin/mysqld ]]; then
+echo -e "MariaDB:\t\t"\$(systemctl is-active mariadb)
+  fi
+  if [[ -f /usr/sbin/php-fpm7.4 ]]; then
+echo -e "PHP:\t\t"\$(systemctl is-active php7.4-fpm)
+  fi
   if [[ -f /usr/sbin/sshd ]]; then
 echo -e "sshd:\t\t"\$(systemctl is-active sshd)
+  fi
+  if [[ -f /usr/sbin/ntpd ]]; then
+echo -e "ntpd:\t\t"\$(systemctl is-active ntp)
   fi
   if [[ -f /usr/bin/tor ]]; then
 echo -e "Tor:\t"\$(systemctl is-active tor)
@@ -2968,15 +3861,11 @@ echo "*                                   Vps Toolbox Result                    
 echo "*                     Please visit the following link to get the result                            *"
 echo "*                       https://$domain/$password1.html                                     *"
 echo "*                 For more info ,please run the following command                                  *"
-echo 'sudo bash -c "\$(curl -fsSL https://raw.githubusercontent.com/johnrosen1/vpstoolbox/master/vps.sh)"*'
+echo 'curl -sO https://raw.githubusercontent.com/johnrosen1/vpstoolbox/master/vps.sh && sudo bash vps.sh*'
 echo "****************************************************************************************************"
 EOF
 		chmod +x /etc/profile.d/mymotd.sh
-		if [[ $install_bbrplus = 1 ]]; then
-		bash -c "$(curl -fsSL https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcp.sh)"
-		fi
 		clear
-		cat /root/.trojan/result.txt
 		if (whiptail --title "Reboot" --yesno "安装成功(success)！ 重启 (reboot) 使配置生效,重新SSH连接后将自动出现结果 (to make the configuration effective)?" 8 78); then
 		clear
 		reboot
@@ -2994,28 +3883,14 @@ EOF
 		colorEcho ${INFO} "Please read the result then hit enter to proceed"
 		read var
 		colorEcho ${INFO} "Network Benchmark"
-		if [[ ${dist} != centos ]]; then
-			apt-get install gnupg apt-transport-https dirmngr -y -qq
+		apt-get install gnupg apt-transport-https dirmngr -y -qq
 		INSTALL_KEY="379CE192D401AB61"
-		# Ubuntu versions supported: xenial, bionic
-		# Debian versions supported: jessie, stretch, buster
 		DEB_DISTRO=$(lsb_release -sc)
 		apt-key adv --keyserver keyserver.ubuntu.com --recv-keys $INSTALL_KEY
 		echo "deb https://ookla.bintray.com/debian ${DEB_DISTRO} main" | sudo tee  /etc/apt/sources.list.d/speedtest.list
 		apt-get update -q
-		# Other non-official binaries will conflict with Speedtest CLI
-		# Example how to remove using apt-get
 		apt-get purge speedtest-cli -y -qq
 		apt-get install speedtest -y -qq
-			else
-			yum install wget -y
-			wget https://bintray.com/ookla/rhel/rpm -O bintray-ookla-rhel.repo
-			sudo mv bintray-ookla-rhel.repo /etc/yum.repos.d/
-			# Other non-official binaries will conflict with Speedtest CLI
-			# Example how to remove using yum
-			rpm -qa | grep speedtest | xargs -I {} sudo yum -y remove {}
-			yum install speedtest -y
-		fi
 		#speedtest
 		sh -c 'echo "YES\n" | speedtest'
 		colorEcho ${INFO} "Benchmark complete"
@@ -3044,28 +3919,26 @@ EOF
 clear
 cd
 osdist
-if [[ ${dist} != centos ]]; then
-	if grep -q "DebianBanner" /etc/ssh/sshd_config
-	then
-	:
-	else
-	ssh-keygen -A
-	sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
-	sed -i 's/^HostKey \/etc\/ssh\/ssh_host_\(dsa\|ecdsa\)_key$/\#HostKey \/etc\/ssh\/ssh_host_\1_key/g' /etc/ssh/sshd_config
-	sed -i 's/#HostKey \/etc\/ssh\/ssh_host_ed25519_key/HostKey \/etc\/ssh\/ssh_host_ed25519_key/g' /etc/ssh/sshd_config
-	sed -i 's/#TCPKeepAlive yes/TCPKeepAlive yes/' /etc/ssh/sshd_config
-	sed -i 's/#PermitTunnel no/PermitTunnel no/' /etc/ssh/sshd_config
-	sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords no/' /etc/ssh/sshd_config
-	sed -i 's/#GatewayPorts no/GatewayPorts no/' /etc/ssh/sshd_config
-	sed -i 's/#StrictModes yes/StrictModes yes/' /etc/ssh/sshd_config
-	sed -i 's/#AllowAgentForwarding yes/AllowAgentForwarding no/' /etc/ssh/sshd_config
-	sed -i 's/#AllowTcpForwarding yes/AllowTcpForwarding no/' /etc/ssh/sshd_config
-	echo "" >> /etc/ssh/sshd_config
-	echo "Protocol 2" >> /etc/ssh/sshd_config
-	echo "DebianBanner no" >> /etc/ssh/sshd_config
-	echo "AllowStreamLocalForwarding no" >> /etc/ssh/sshd_config
-	systemctl reload sshd
-	fi
+if grep -q "DebianBanner" /etc/ssh/sshd_config
+then
+:
+else
+ssh-keygen -A
+sed -i 's/#MaxAuthTries 6/MaxAuthTries 3/' /etc/ssh/sshd_config
+sed -i 's/^HostKey \/etc\/ssh\/ssh_host_\(dsa\|ecdsa\)_key$/\#HostKey \/etc\/ssh\/ssh_host_\1_key/g' /etc/ssh/sshd_config
+#sed -i 's/#HostKey \/etc\/ssh\/ssh_host_ed25519_key/HostKey \/etc\/ssh\/ssh_host_ed25519_key/g' /etc/ssh/sshd_config
+sed -i 's/#TCPKeepAlive yes/TCPKeepAlive yes/' /etc/ssh/sshd_config
+sed -i 's/#PermitTunnel no/PermitTunnel no/' /etc/ssh/sshd_config
+sed -i 's/#PermitEmptyPasswords no/PermitEmptyPasswords no/' /etc/ssh/sshd_config
+sed -i 's/#GatewayPorts no/GatewayPorts no/' /etc/ssh/sshd_config
+sed -i 's/#StrictModes yes/StrictModes yes/' /etc/ssh/sshd_config
+sed -i 's/#AllowAgentForwarding yes/AllowAgentForwarding no/' /etc/ssh/sshd_config
+sed -i 's/#AllowTcpForwarding yes/AllowTcpForwarding no/' /etc/ssh/sshd_config
+echo "" >> /etc/ssh/sshd_config
+echo "Protocol 2" >> /etc/ssh/sshd_config
+echo "DebianBanner no" >> /etc/ssh/sshd_config
+echo "AllowStreamLocalForwarding no" >> /etc/ssh/sshd_config
+systemctl reload sshd
 fi
 setlanguage
 if [[ -f /root/.trojan/license.json ]]; then
